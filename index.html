@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Parcheggi Smart</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3388ff">
+
+<link
+rel="stylesheet"
+href="https://unpkg.com/leaflet/dist/leaflet.css"
+/>
+
+<style>
+
+body{
+margin:0;
+font-family:sans-serif;
+}
+
+#controls{
+display:flex;
+flex-wrap:wrap;
+gap:6px;
+padding:8px;
+background:#f5f5f5;
+}
+
+#controls input,
+#controls select,
+#controls button{
+font-size:16px;
+padding:6px;
+}
+
+#map{
+height:calc(100vh - 70px);
+width:100vw;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="controls">
+
+<input
+id="via"
+type="text"
+placeholder="Via e numero civico (opzionale)"
+>
+
+<select id="raggio">
+<option value="50">50 m</option>
+<option value="100">100 m</option>
+<option value="150">150 m</option>
+</select>
+
+<button onclick="cercaVia()">
+Cerca via
+</button>
+
+<button onclick="usaGPS()">
+Vicino a me
+</button>
+
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+const map = L.map("map").setView([45.1278,7.6316],16);
+
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+{
+attribution:"© OpenStreetMap"
+}
+).addTo(map);
+
+let markers=[];
+let ultimaRicerca=null;
+
+function pulisciMappa(){
+
+markers.forEach(m=>map.removeLayer(m));
+markers=[];
+
+}
+
+function disegnaRisultati(d,raggio){
+
+pulisciMappa();
+
+map.setView(
+[d.coordinate.lat,d.coordinate.lng],
+18
+);
+
+L.circle(
+[d.coordinate.lat,d.coordinate.lng],
+{
+radius:Number(raggio),
+color:"#3388ff",
+fill:false
+}
+).addTo(map);
+
+d.parcheggi
+.filter(p => p.stato === "libero")
+.forEach(p=>{
+
+const marker=L.circleMarker(
+[p.lat,p.lng],
+{
+radius:6,
+fillColor:p.stato==="libero"?"green":"red",
+color:"#000",
+weight:1,
+opacity:1,
+fillOpacity:0.9
+}
+)
+
+.addTo(map)
+
+.bindPopup(
+`ID:${p.id}<br>
+Stato:${p.stato}<br>
+Distanza:${p.distanza_m} m<br><br>
+<button onclick="naviga(${p.lat},${p.lng})">
+Naviga
+</button>'
+);
+
+markers.push(marker);
+
+});
+
+}
+
+function cercaVia(){
+
+const via=document.getElementById("via").value.trim();
+const raggio=document.getElementById("raggio").value;
+
+if(!via){
+
+alert("Inserisci una via");
+
+return;
+
+}
+
+ultimaRicerca="via";
+
+fetch(
+`http://SERVER_BACKEND:8000/parcheggi/vicini?via=${encodeURIComponent(via)}&raggio=${raggio}`
+)
+
+.then(r=>r.json())
+
+.then(d=>{
+
+if(d.errore){
+
+alert(d.errore);
+return;
+
+}
+
+disegnaRisultati(d,raggio);
+
+})
+
+.catch(err=>{
+
+console.error(err);
+alert("Errore backend");
+
+});
+
+}
+
+function usaGPS(){
+
+const raggio=document.getElementById("raggio").value;
+
+navigator.geolocation.getCurrentPosition(pos=>{
+
+const lat=pos.coords.latitude;
+const lng=pos.coords.longitude;
+
+ultimaRicerca="gps";
+
+fetch(
+`http://SERVER_BACKEND:8000/parcheggi/vicini?lat=${lat}&lng=${lng}&raggio=${raggio}`
+)
+
+.then(r=>r.json())
+
+.then(d=>{
+
+if(d.errore){
+
+alert(d.errore);
+return;
+
+}
+
+d.coordinate={lat:lat,lng:lng};
+
+disegnaRisultati(d,raggio);
+
+});
+
+});
+
+}
+
+setInterval(()=>{
+
+if(ultimaRicerca==="gps"){
+
+usaGPS();
+
+}
+
+if(ultimaRicerca==="via"){
+
+cercaVia();
+
+}
+
+},5000);
+
+window.onload=()=>{
+
+usaGPS();
+
+};
+
+function naviga(lat,lng){
+  const url='https://www.google.com/maps/dir/?api=1&destination=${lat},{lng}';
+  
+  window.open(url, "_blank");
+}
+
+</script>
+
+</body>
+
+</html>
