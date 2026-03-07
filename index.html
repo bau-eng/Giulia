@@ -151,22 +151,23 @@ markers.push(marker);
 
 function cercaVia(){
 
-const via=document.getElementById("via").value.trim();
 const raggio=document.getElementById("raggio").value;
 
-if(!via){
+const datiFinti = {
+coordinate:{lat:45.1278,lng:7.6316},
+parcheggi:[
+{ id:1, lat:45.1279, lng:7.6317, stato:"libero", distanza_m:20 },
+{ id:2, lat:45.1280, lng:7.6315, stato:"occupato", distanza_m:30 },
+{ id:3, lat:45.1277, lng:7.6314, stato:"libero", distanza_m:40 }
+]
+};
 
-alert("Inserisci una via");
-
-return;
+disegnaRisultati(datiFinti,raggio);
 
 }
 
-ultimaRicerca="via";
 
-fetch(
-`http://SERVER_BACKEND:8000/parcheggi/vicini?via=${encodeURIComponent(via)}&raggio=${raggio}`
-)
+ultimaRicerca="via";
 
 .then(r=>r.json())
 
@@ -192,6 +193,7 @@ alert("Errore backend");
 
 }
 
+
 function usaGPS(){
 
 const raggio=document.getElementById("raggio").value;
@@ -201,26 +203,19 @@ navigator.geolocation.getCurrentPosition(pos=>{
 const lat=pos.coords.latitude;
 const lng=pos.coords.longitude;
 
-ultimaRicerca="gps";
+const datiFinti = {
 
-fetch(
-`http://SERVER_BACKEND:8000/parcheggi/vicini?lat=${lat}&lng=${lng}&raggio=${raggio}`
-)
+coordinate:{lat:lat,lng:lng},
 
-.then(r=>r.json())
+parcheggi:[
+{ id:1, lat:lat+0.0002, lng:lng+0.0002, stato:"libero", distanza_m:20 },
+{ id:2, lat:lat-0.0002, lng:lng+0.0001, stato:"occupato", distanza_m:35 },
+{ id:3, lat:lat+0.0001, lng:lng-0.0002, stato:"libero", distanza_m:50 }
+]
 
-.then(d=>{
+};
 
-if(d.errore){
-
-alert(d.errore);
-return;
-
-}
-
-d.coordinate={lat:lat,lng:lng};
-
-disegnaRisultati(d,raggio);
+disegnaRisultati(datiFinti,raggio);
 
 });
 
