@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Parcheggi Smart</title>
+<title>Ricerca Parcheggi</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
@@ -20,22 +21,26 @@ font-family:sans-serif;
 }
 
 #controls{
-background:#f2f2f2;
+background:rgba(255,255,255,0.7);
+backdrop-filter:blur(6px);
 padding:8px;
 display:flex;
 flex-direction:column;
 gap:6px;
+position:relative;
+z-index:1000;
 }
 
 #via{
 padding:10px;
+font-size:16px;
 border-radius:25px;
 border:1px solid #ccc;
 }
 
 #suggestions{
-background:white;
-border:1px solid #ccc;
+background:rgba(255,255,255,0.9);
+border-radius:8px;
 max-height:150px;
 overflow:auto;
 display:none;
@@ -60,7 +65,7 @@ flex:1;
 padding:10px;
 border-radius:25px;
 border:2px solid #ccc;
-background:white;
+background:rgba(255,255,255,0.7);
 }
 
 #opzioni button.attivo{
@@ -72,45 +77,83 @@ display:flex;
 gap:6px;
 }
 
+#rigaCerca select,
+#rigaCerca button{
+flex:1;
+padding:10px;
+border-radius:25px;
+border:1px solid #ccc;
+background:rgba(255,255,255,0.7);
+}
+
 #map{
 height:60vh;
+z-index:1;
 }
 
 #risultati{
 padding:10px;
 font-size:16px;
+background:rgba(255,255,255,0.7);
+backdrop-filter:blur(6px);
+position:relative;
+z-index:1000;
 }
 
 #menuBtn{
+
 position:fixed;
 bottom:20px;
 right:20px;
+
 width:50px;
 height:50px;
+
 border-radius:50%;
-font-size:26px;
 border:none;
-background:white;
+
+font-size:26px;
+background:rgba(255,255,255,0.9);
+
 z-index:2000;
+
 }
 
 #settings{
+
 position:fixed;
+
 bottom:80px;
 right:20px;
-background:white;
-padding:10px;
-border-radius:10px;
+
+background:rgba(255,255,255,0.9);
+
+padding:12px;
+
+border-radius:12px;
+
 border:1px solid #ccc;
+
 display:none;
+
 z-index:2000;
-width:220px;
+
+width:230px;
+
 }
 
 #settings input{
+
 width:100%;
-margin-bottom:6px;
-padding:6px;
+
+padding:8px;
+
+margin-bottom:8px;
+
+border-radius:6px;
+
+border:1px solid #ccc;
+
 }
 
 </style>
@@ -132,7 +175,6 @@ padding:6px;
 </div>
 
 <div id="rigaCerca">
-
 <select id="raggio">
 <option value="50">50 m</option>
 <option value="100">100 m</option>
@@ -140,7 +182,6 @@ padding:6px;
 </select>
 
 <button id="cercaBtn">Cerca</button>
-
 </div>
 
 </div>
@@ -156,7 +197,7 @@ padding:6px;
 <input id="inputCasa" placeholder="Indirizzo Casa">
 <input id="inputLavoro" placeholder="Indirizzo Lavoro">
 
-<button id="salvaIndirizzi">Salva</button>
+<button id="salvaIndirizzi">Salva indirizzi</button>
 
 </div>
 
@@ -173,13 +214,12 @@ L.tileLayer(
 {attribution:"© OpenStreetMap"}
 ).addTo(map);
 
-let markerCluster=L.markerClusterGroup();
-
-map.addLayer(markerCluster);
+let cluster=L.markerClusterGroup();
+map.addLayer(cluster);
 
 let punto=null;
 let cerchio=null;
-let lastUpdate=null;
+let ultimaPosizione=null;
 
 function attiva(btn){
 
@@ -194,61 +234,127 @@ function aggiornaPunto(lat,lng){
 
 if(punto) map.removeLayer(punto);
 
-punto=L.circleMarker(
-[lat,lng],
-{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}
-).addTo(map);
+punto=L.circleMarker([lat,lng],{
+radius:8,
+color:"white",
+fillColor:"#007aff",
+fillOpacity:1
+}).addTo(map);
 
 map.panTo([lat,lng]);
 
+ultimaPosizione={lat,lng};
+
 }
 
-async function caricaParcheggi(lat,lng){
+function distanza(lat1,lng1,lat2,lng2){
 
-const raggio=document.getElementById("raggio").value;
+const R=6371000;
 
-markerCluster.clearLayers();
+const dLat=(lat2-lat1)*Math.PI/180;
+const dLng=(lng2-lng1)*Math.PI/180;
 
-if(cerchio) map.removeLayer(cerchio);
+const a=
+Math.sin(dLat/2)**2+
+Math.cos(lat1*Math.PI/180)*
+Math.cos(lat2*Math.PI/180)*
+Math.sin(dLng/2)**2;
 
-cerchio=L.circle([lat,lng],{radius:raggio,fillColor:"#3388ff",fillOpacity:0.15}).addTo(map);
+const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 
-const query=`
-[out:json];
-(
-node["amenity"="parking"](around:${raggio},${lat},${lng});
-);
-out;
-`;
+return R*c;
 
-const url="https://overpass-api.de/api/interpreter?data="+encodeURIComponent(query);
+}
 
-const res=await fetch(url);
+function pulisci(){
 
-const data=await res.json();
+cluster.clearLayers();
 
-let tot=data.elements.length;
+if(cerchio){
+map.removeLayer(cerchio);
+cerchio=null;
+}
 
-let liberi=Math.floor(tot*0.5);
+}
 
-data.elements.forEach(p=>{
+function generaParcheggi(lat,lng){
 
-const marker=L.marker([p.lat,p.lon]);
+let arr=[];
 
-marker.on("click",()=>{
+for(let i=0;i<15;i++){
 
-const url="https://www.google.com/maps/dir/?api=1&destination="+p.lat+","+p.lon;
-
-window.open(url,"_blank");
-
+arr.push({
+lat:lat+(Math.random()-0.5)/1500,
+lng:lng+(Math.random()-0.5)/1500,
+libero:Math.random()>0.4
 });
 
-markerCluster.addLayer(marker);
+}
+
+for(let i=0;i<15;i++){
+
+arr.push({
+lat:lat+(Math.random()-0.5)/800,
+lng:lng+(Math.random()-0.5)/800,
+libero:Math.random()>0.4
+});
+
+}
+
+return arr;
+
+}
+
+function disegna(lat,lng){
+
+const raggio=Number(document.getElementById("raggio").value);
+
+pulisci();
+
+cerchio=L.circle([lat,lng],{
+radius:raggio,
+fillColor:"#3388ff",
+fillOpacity:0.15,
+color:null
+}).addTo(map);
+
+const parcheggi=generaParcheggi(lat,lng);
+
+let tot=0;
+let liberi=0;
+
+parcheggi.forEach(p=>{
+
+const dist=distanza(lat,lng,p.lat,p.lng);
+
+if(dist<=raggio){
+
+tot++;
+
+if(p.libero) liberi++;
+
+const marker=L.circleMarker([p.lat,p.lng],{
+radius:7,
+color:"#000",
+fillColor:p.libero?"green":"red",
+fillOpacity:0.9
+});
+
+cluster.addLayer(marker);
+
+}
 
 });
 
 document.getElementById("risultati").innerHTML=
-"Parcheggi trovati: "+tot+"<br>Parcheggi liberi stimati: "+liberi;
+"Parcheggi totali: "+tot+"<br>Parcheggi liberi: "+liberi;
+
+}
+
+function cerca(lat,lng){
+
+aggiornaPunto(lat,lng);
+disegna(lat,lng);
 
 }
 
@@ -257,32 +363,19 @@ async function cercaIndirizzo(ind){
 const url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(ind);
 
 const res=await fetch(url);
-
 const data=await res.json();
 
 if(data.length==0){
-
 alert("Indirizzo non trovato");
 return;
-
 }
 
 const lat=parseFloat(data[0].lat);
 const lon=parseFloat(data[0].lon);
 
-aggiornaPunto(lat,lon);
-
-caricaParcheggi(lat,lon);
+cerca(lat,lon);
 
 }
-
-document.getElementById("cercaBtn").onclick=()=>{
-
-const v=document.getElementById("via").value.trim();
-
-if(v!="") cercaIndirizzo(v);
-
-};
 
 document.getElementById("via").addEventListener("input",async function(){
 
@@ -296,7 +389,6 @@ return;
 const url="https://nominatim.openstreetmap.org/search?format=json&q="+q;
 
 const res=await fetch(url);
-
 const data=await res.json();
 
 suggestions.innerHTML="";
@@ -304,13 +396,17 @@ suggestions.style.display="block";
 
 data.slice(0,5).forEach(place=>{
 
+let parts=place.display_name.split(",");
+
+let text=parts[0]+" , "+parts[2];
+
 const div=document.createElement("div");
 
-div.textContent=place.display_name;
+div.textContent=text;
 
 div.onclick=()=>{
 
-via.value=place.display_name;
+via.value=text;
 
 suggestions.style.display="none";
 
@@ -324,63 +420,4 @@ suggestions.appendChild(div);
 
 });
 
-document.getElementById("gpsBtn").onclick=function(){
-
-attiva(this);
-
-navigator.geolocation.watchPosition(pos=>{
-
-const lat=pos.coords.latitude;
-const lng=pos.coords.longitude;
-
-aggiornaPunto(lat,lng);
-
-caricaParcheggi(lat,lng);
-
-},{enableHighAccuracy:true});
-
-};
-
-document.getElementById("casaBtn").onclick=function(){
-
-attiva(this);
-
-const ind=localStorage.getItem("indirizzoCasa");
-
-if(ind) cercaIndirizzo(ind);
-
-};
-
-document.getElementById("lavoroBtn").onclick=function(){
-
-attiva(this);
-
-const ind=localStorage.getItem("indirizzoLavoro");
-
-if(ind) cercaIndirizzo(ind);
-
-};
-
-document.getElementById("salvaIndirizzi").onclick=()=>{
-
-const casa=document.getElementById("inputCasa").value.trim();
-const lavoro=document.getElementById("inputLavoro").value.trim();
-
-if(casa) localStorage.setItem("indirizzoCasa",casa);
-if(lavoro) localStorage.setItem("indirizzoLavoro",lavoro);
-
-alert("Salvato");
-
-};
-
-menuBtn.onclick=()=>{
-
-settings.style.display=
-settings.style.display==="none"?"block":"none";
-
-};
-
-</script>
-
-</body>
-</html>
+document.getElementById("cercaBtn
