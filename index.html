@@ -10,6 +10,8 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
+<script src="https://unpkg.com/supercluster@7.1.5/dist/supercluster.min.js"></script>
+
 <style>
 
 body{
@@ -275,29 +277,38 @@ cerchio=null;
 
 }
 
-
+let superclusterIndex=null;
 
 function generaParcheggi(lat,lng){
 
-let arr=[];
+let features=[];
 
-for(let i=0;i<15;i++){
+for(let i=0;i<60;i++){
 
-arr.push({
+let pLat=lat+(Math.random()-0.5)/1200;
+let pLng=lng+(Math.random()-0.5)/1200;
 
-lat:lat+(Math.random()-0.5)/2000,
-lng:lng+(Math.random()-0.5)/2000,
+features.push({
+type:"Feature",
+properties:{
 libero:Math.random()>0.4
-
+},
+geometry:{
+type:"Point",
+coordinates:[pLng,pLat]
+}
 });
 
 }
 
-return arr;
+superclusterIndex=new Supercluster({
+radius:60,
+maxZoom:20
+});
+
+superclusterIndex.load(features);
 
 }
-
-
 
 function disegna(lat,lng){
 
@@ -315,14 +326,28 @@ color:null
 }
 ).addTo(map);
 
-const parcheggi=generaParcheggi(lat,lng);
+if(!superclusterIndex){
+generaParcheggi(lat,lng);
+}
+
+const bounds=[
+lng-0.002,
+lat-0.002,
+lng+0.002,
+lat+0.002
+];
+
+const parcheggi=superclusterIndex.getClusters(bounds,20);
 
 let tot=0;
 let liberi=0;
 
 parcheggi.forEach(p=>{
 
-const dist=distanza(lat,lng,p.lat,p.lng);
+const pLat=p.geometry.coordinates[1];
+const pLng=p.geometry.coordinates[0];
+
+const dist=distanza(lat,lng,pLat,pLng);
 
 if(dist<=raggio){
 
@@ -331,7 +356,7 @@ tot++;
 if(p.libero) liberi++;
 
 const marker=L.circleMarker(
-[p.lat,p.lng],
+[pLat,pLng],
 {
 radius:7,
 color:"#000",
