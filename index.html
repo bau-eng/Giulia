@@ -1,389 +1,198 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <title>Ricerca Parcheggi</title>
-
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
-
-body{
-margin:0;
-font-family:sans-serif;
-}
-
-#controls{
-background:#f3f3f3;
-padding:8px;
-display:flex;
-flex-direction:column;
-gap:6px;
-}
-
-#via{
-padding:10px;
-font-size:16px;
-border-radius:25px;
-border:1px solid #ccc;
-}
-
-#luoghiBar{
-display:flex;
-gap:6px;
-overflow-x:auto;
-}
-
-.luogoBtn{
-padding:8px 14px;
-border-radius:20px;
-border:1px solid #ccc;
-background:white;
-white-space:nowrap;
-cursor:pointer;
-}
-
-#raggio{
-padding:10px;
-border-radius:20px;
-border:1px solid #ccc;
-}
-
-#map{
-height:60vh;
-}
-
-#risultati{
-padding:10px;
-background:white;
-}
-
-#gpsBtn{
-position:absolute;
-bottom:20px;
-left:20px;
-width:50px;
-height:50px;
-border-radius:50%;
-border:none;
-font-size:20px;
-background:white;
-z-index:2000;
-box-shadow:0 2px 8px rgba(0,0,0,0.2);
-}
-
-#menuBtn{
-position:absolute;
-bottom:20px;
-right:20px;
-width:50px;
-height:50px;
-border-radius:50%;
-border:none;
-font-size:26px;
-background:white;
-z-index:2000;
-box-shadow:0 2px 8px rgba(0,0,0,0.2);
-}
-
-#settings{
-position:absolute;
-bottom:80px;
-right:20px;
-background:white;
-padding:12px;
-border-radius:12px;
-border:1px solid #ccc;
-display:none;
-z-index:2000;
-width:250px;
-}
-
-#settings input{
-width:100%;
-padding:8px;
-margin-bottom:6px;
-border-radius:6px;
-border:1px solid #ccc;
-}
-
-#addPlace{
-width:100%;
-padding:8px;
-border-radius:6px;
-border:1px solid #ccc;
-background:#eee;
-cursor:pointer;
-}
-
+body{margin:0;font-family:sans-serif;}
+#controls{background:#f3f3f3;padding:8px;display:flex;flex-direction:column;gap:6px;}
+#via{padding:10px;font-size:16px;border-radius:25px;border:1px solid #ccc;width:80%;}
+#cercaBtnRiga1{padding:10px;border-radius:25px;border:1px solid #ccc;background:#007aff;color:white;cursor:pointer;}
+#luoghiBar{display:flex;gap:6px;overflow-x:auto;align-items:center;}
+.luogoBtn{padding:8px 14px;border-radius:20px;border:1px solid #ccc;background:white;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:4px;}
+.luogoBtn.attivo{border-color:green;}
+.luogoBtn span{margin-right:4px;}
+#raggio{padding:10px;border-radius:20px;border:1px solid #ccc;}
+#map{height:60vh;}
+#risultati{padding:10px;background:white;}
+#gpsBtn{position:absolute;bottom:20px;right:20px;width:50px;height:50px;border-radius:50%;border:none;font-size:20px;background:white;z-index:2000;box-shadow:0 2px 8px rgba(0,0,0,0.2);cursor:pointer;}
+#menuBtn{position:absolute;bottom:20px;right:80px;width:50px;height:50px;border-radius:50%;border:none;font-size:26px;background:white;z-index:2000;box-shadow:0 2px 8px rgba(0,0,0,0.2);cursor:pointer;}
+#settings{position:absolute;bottom:80px;right:20px;background:white;padding:12px;border-radius:12px;border:1px solid #ccc;display:none;z-index:2000;width:250px;}
+#settings input{width:100%;padding:8px;margin-bottom:6px;border-radius:6px;border:1px solid #ccc;}
+#addPlace{width:100%;padding:8px;border-radius:6px;border:1px solid #ccc;background:#eee;cursor:pointer;}
 </style>
-
 </head>
 
 <body>
-
 <div id="controls">
-
-<input id="via" placeholder="Cerca indirizzo">
-
-<div id="luoghiBar"></div>
-
-<select id="raggio">
-<option value="50">Raggio 50 m</option>
-<option value="100">Raggio 100 m</option>
-<option value="150">Raggio 150 m</option>
-</select>
-
+  <div style="display:flex;gap:6px;align-items:center;">
+    <input id="via" placeholder="Cerca indirizzo">
+    <button id="cercaBtnRiga1">Cerca</button>
+  </div>
+  <div id="luoghiBar"></div>
+  <select id="raggio">
+    <option value="50">Raggio 50 m</option>
+    <option value="100">Raggio 100 m</option>
+    <option value="150">Raggio 150 m</option>
+  </select>
 </div>
 
 <div id="map"></div>
-
 <div id="risultati"></div>
 
 <button id="gpsBtn">📍</button>
-
 <button id="menuBtn">⋮</button>
 
 <div id="settings">
-
-<input id="nomeLuogo" placeholder="Nome luogo">
-
-<input id="indirizzoLuogo" placeholder="Indirizzo">
-
-<button id="addPlace">Aggiungi luogo</button>
-
+  <input id="nomeLuogo" placeholder="Nome luogo">
+  <input id="indirizzoLuogo" placeholder="Indirizzo">
+  <button id="addPlace">Aggiungi luogo</button>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 <script>
+let map = L.map("map").setView([41.9,12.5],16);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
 
-let map=L.map("map").setView([41.9,12.5],16);
-
-L.tileLayer(
-"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-{attribution:"© OpenStreetMap"}
-).addTo(map);
-
-let punto=null;
-let cerchio=null;
-let markers=[];
+let punto=null, cerchio=null, markers=[];
 let watchID=null;
-
 let luoghi=JSON.parse(localStorage.getItem("luoghi")||"[]");
 
+// ---- Funzioni base ----
 function aggiornaPunto(lat,lng){
-
-if(punto) map.removeLayer(punto);
-
-punto=L.circleMarker([lat,lng],{
-radius:8,
-color:"white",
-fillColor:"#007aff",
-fillOpacity:1
-}).addTo(map);
-
-map.panTo([lat,lng]);
-
+  if(punto) punto.setLatLng([lat,lng]);
+  else {
+    punto = L.circleMarker([lat,lng],{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}).addTo(map);
+  }
 }
 
 function pulisci(){
-
-markers.forEach(m=>map.removeLayer(m));
-markers=[];
-
-if(cerchio){
-map.removeLayer(cerchio);
-cerchio=null;
-}
-
-}
-
-function generaParcheggi(lat,lng){
-
-let arr=[];
-
-for(let i=0;i<15;i++){
-
-arr.push({
-lat:lat+(Math.random()-0.5)/2000,
-lng:lng+(Math.random()-0.5)/2000,
-libero:Math.random()>0.4
-});
-
-}
-
-return arr;
-
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+  if(cerchio){ map.removeLayer(cerchio); cerchio=null; }
 }
 
 function distanza(lat1,lng1,lat2,lng2){
+  const R=6371000;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  return R*c;
+}
 
-const R=6371000;
-
-const dLat=(lat2-lat1)*Math.PI/180;
-const dLng=(lng2-lng1)*Math.PI/180;
-
-const a=
-Math.sin(dLat/2)**2+
-Math.cos(lat1*Math.PI/180)*
-Math.cos(lat2*Math.PI/180)*
-Math.sin(dLng/2)**2;
-
-const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-
-return R*c;
-
+// ---- Generazione parcheggi casuali ----
+function generaParcheggi(lat,lng){
+  let arr=[];
+  for(let i=0;i<15;i++){
+    arr.push({lat:lat+(Math.random()-0.5)/2000,lng:lng+(Math.random()-0.5)/2000,libero:Math.random()>0.4});
+  }
+  return arr;
 }
 
 function disegna(lat,lng){
-
-const raggio=Number(document.getElementById("raggio").value);
-
-pulisci();
-
-cerchio=L.circle([lat,lng],{
-radius:raggio,
-fillColor:"#3388ff",
-fillOpacity:0.15,
-color:null
-}).addTo(map);
-
-const parcheggi=generaParcheggi(lat,lng);
-
-let tot=0;
-let liberi=0;
-
-parcheggi.forEach(p=>{
-
-const dist=distanza(lat,lng,p.lat,p.lng);
-
-if(dist<=raggio){
-
-tot++;
-
-if(p.libero) liberi++;
-
-const marker=L.circleMarker([p.lat,p.lng],{
-radius:7,
-color:"#000",
-fillColor:p.libero?"green":"red",
-fillOpacity:0.9
-}).addTo(map);
-
-markers.push(marker);
-
+  const raggio=Number(document.getElementById("raggio").value);
+  pulisci();
+  cerchio = L.circle([lat,lng],{radius:raggio,fillColor:"#3388ff",fillOpacity:0.15,color:null}).addTo(map);
+  const parcheggi = generaParcheggi(lat,lng);
+  let tot=0, liberi=0;
+  parcheggi.forEach(p=>{
+    const dist=distanza(lat,lng,p.lat,p.lng);
+    if(dist<=raggio){
+      tot++;
+      if(p.libero) liberi++;
+      const marker=L.circleMarker([p.lat,p.lng],{radius:7,color:"#000",fillColor:p.libero?"green":"red",fillOpacity:0.9}).addTo(map);
+      markers.push(marker);
+    }
+  });
+  document.getElementById("risultati").innerHTML="Parcheggi totali: "+tot+"<br>Parcheggi liberi: "+liberi;
 }
 
-});
-
-document.getElementById("risultati").innerHTML=
-"Parcheggi totali: "+tot+"<br>Parcheggi liberi: "+liberi;
-
-}
-
+// ---- Funzione cerca indirizzo ----
 async function cercaIndirizzo(ind){
-
-if(watchID!==null){
-navigator.geolocation.clearWatch(watchID);
-watchID=null;
+  if(watchID!==null){ navigator.geolocation.clearWatch(watchID); watchID=null; }
+  const url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(ind);
+  const res=await fetch(url);
+  const data=await res.json();
+  if(data.length==0){ alert("Indirizzo non trovato"); return; }
+  const lat=parseFloat(data[0].lat);
+  const lon=parseFloat(data[0].lon);
+  aggiornaPunto(lat,lon);
+  disegna(lat,lon);
 }
 
-const url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(ind);
-
-const res=await fetch(url);
-const data=await res.json();
-
-if(data.length==0){
-alert("Indirizzo non trovato");
-return;
+// ---- Eventi ----
+document.getElementById("cercaBtnRiga1").onclick = ()=>{
+  const v=document.getElementById("via").value.trim();
+  if(v!="") cercaIndirizzo(v);
 }
 
-const lat=parseFloat(data[0].lat);
-const lon=parseFloat(data[0].lon);
-
-aggiornaPunto(lat,lon);
-disegna(lat,lon);
-
+document.getElementById("gpsBtn").onclick = ()=>{
+  if(watchID!==null){ navigator.geolocation.clearWatch(watchID); }
+  watchID = navigator.geolocation.watchPosition(pos=>{
+    const lat=pos.coords.latitude;
+    const lng=pos.coords.longitude;
+    aggiornaPunto(lat,lng);
+  },{enableHighAccuracy:true});
 }
 
-document.getElementById("via").addEventListener("keypress",function(e){
-
-if(e.key==="Enter"){
-
-const v=this.value.trim();
-
-if(v!="") cercaIndirizzo(v);
-
-}
-
-});
-
-document.getElementById("gpsBtn").onclick=function(){
-
-watchID=navigator.geolocation.watchPosition(pos=>{
-
-const lat=pos.coords.latitude;
-const lng=pos.coords.longitude;
-
-aggiornaPunto(lat,lng);
-disegna(lat,lng);
-
-},{enableHighAccuracy:true});
-
-};
-
+// ---- Luoghi dinamici ----
 function aggiornaLuoghi(){
-
-const bar=document.getElementById("luoghiBar");
-
-bar.innerHTML="";
-
-luoghi.forEach(l=>{
-
-const btn=document.createElement("div");
-
-btn.className="luogoBtn";
-btn.textContent=l.nome;
-
-btn.onclick=()=>cercaIndirizzo(l.indirizzo);
-
-bar.appendChild(btn);
-
-});
-
+  const bar=document.getElementById("luoghiBar");
+  bar.innerHTML="";
+  luoghi.forEach((l,i)=>{
+    const btn=document.createElement("div");
+    btn.className="luogoBtn";
+    const span = document.createElement("span");
+    span.textContent = l.nome;
+    btn.appendChild(span);
+    const edit = document.createElement("button");
+    edit.textContent="✎";
+    edit.style.fontSize="12px";
+    edit.onclick=()=>{
+      const newNome=prompt("Nome luogo:",l.nome);
+      const newInd=prompt("Indirizzo:",l.indirizzo);
+      if(newNome && newInd){
+        luoghi[i]={nome:newNome,indirizzo:newInd};
+        localStorage.setItem("luoghi",JSON.stringify(luoghi));
+        aggiornaLuoghi();
+      }
+    }
+    const del = document.createElement("button");
+    del.textContent="✖";
+    del.style.fontSize="12px";
+    del.onclick=()=>{
+      if(confirm("Eliminare questo luogo?")){
+        luoghi.splice(i,1);
+        localStorage.setItem("luoghi",JSON.stringify(luoghi));
+        aggiornaLuoghi();
+      }
+    }
+    btn.appendChild(edit);
+    btn.appendChild(del);
+    btn.onclick=()=>cercaIndirizzo(l.indirizzo);
+    bar.appendChild(btn);
+  });
 }
 
-document.getElementById("addPlace").onclick=function(){
-
-const nome=document.getElementById("nomeLuogo").value.trim();
-const indirizzo=document.getElementById("indirizzoLuogo").value.trim();
-
-if(nome==""||indirizzo=="") return;
-
-luoghi.push({nome,indirizzo});
-
-localStorage.setItem("luoghi",JSON.stringify(luoghi));
-
-aggiornaLuoghi();
-
-};
+document.getElementById("addPlace").onclick=()=>{
+  const nome=document.getElementById("nomeLuogo").value.trim();
+  const indirizzo=document.getElementById("indirizzoLuogo").value.trim();
+  if(!nome || !indirizzo) return;
+  luoghi.push({nome,indirizzo});
+  localStorage.setItem("luoghi",JSON.stringify(luoghi));
+  aggiornaLuoghi();
+}
 
 const settings=document.getElementById("settings");
-
 document.getElementById("menuBtn").onclick=()=>{
-
-settings.style.display=
-settings.style.display==="none"?"block":"none";
-
-};
+  settings.style.display = settings.style.display==="none"?"block":"none";
+}
 
 aggiornaLuoghi();
-
 </script>
-
 </body>
 </html>
