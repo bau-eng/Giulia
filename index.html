@@ -230,6 +230,15 @@ setInterval(usaGPS,5000);
 window.onload=usaGPS;
 
 </script>
+<script>
 
+if("serviceWorker" in navigator){
+
+navigator.serviceWorker.register("sw.js")
+.then(()=>console.log("SW registrato"));
+
+}
+
+</script>
 </body>
 </html>
