@@ -10,9 +10,6 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
-
 <style>
 
 body{
@@ -21,8 +18,7 @@ font-family:sans-serif;
 }
 
 #controls{
-background:rgba(255,255,255,0.75);
-backdrop-filter:blur(6px);
+background:#f3f3f3;
 padding:8px;
 display:flex;
 flex-direction:column;
@@ -36,23 +32,6 @@ border-radius:25px;
 border:1px solid #ccc;
 }
 
-#suggestions{
-background:rgba(255,255,255,0.9);
-border-radius:10px;
-max-height:150px;
-overflow:auto;
-display:none;
-}
-
-#suggestions div{
-padding:8px;
-cursor:pointer;
-}
-
-#suggestions div:hover{
-background:#eee;
-}
-
 #opzioni{
 display:flex;
 gap:6px;
@@ -63,7 +42,8 @@ flex:1;
 padding:10px;
 border-radius:25px;
 border:2px solid #ccc;
-background:rgba(255,255,255,0.8);
+background:white;
+font-size:14px;
 }
 
 #opzioni button.attivo{
@@ -81,7 +61,6 @@ flex:1;
 padding:10px;
 border-radius:25px;
 border:1px solid #ccc;
-background:rgba(255,255,255,0.8);
 }
 
 #map{
@@ -91,8 +70,7 @@ height:60vh;
 #risultati{
 padding:10px;
 font-size:16px;
-background:rgba(255,255,255,0.75);
-backdrop-filter:blur(6px);
+background:white;
 }
 
 #menuBtn{
@@ -108,9 +86,11 @@ border-radius:50%;
 border:none;
 
 font-size:26px;
-background:rgba(255,255,255,0.9);
+background:white;
 
 z-index:2000;
+
+box-shadow:0 2px 8px rgba(0,0,0,0.2);
 
 }
 
@@ -121,7 +101,7 @@ position:fixed;
 bottom:80px;
 right:20px;
 
-background:rgba(255,255,255,0.9);
+background:white;
 
 padding:12px;
 
@@ -134,6 +114,8 @@ display:none;
 z-index:2000;
 
 width:230px;
+
+box-shadow:0 4px 10px rgba(0,0,0,0.2);
 
 }
 
@@ -151,6 +133,20 @@ border:1px solid #ccc;
 
 }
 
+#settings button{
+
+width:100%;
+
+padding:8px;
+
+border-radius:6px;
+
+border:1px solid #ccc;
+
+background:#f5f5f5;
+
+}
+
 </style>
 
 </head>
@@ -160,8 +156,6 @@ border:1px solid #ccc;
 <div id="controls">
 
 <input id="via" placeholder="Cerca indirizzo">
-
-<div id="suggestions"></div>
 
 <div id="opzioni">
 <button id="gpsBtn">Vicino a me</button>
@@ -190,6 +184,7 @@ border:1px solid #ccc;
 <div id="settings">
 
 <input id="inputCasa" placeholder="Indirizzo Casa">
+
 <input id="inputLavoro" placeholder="Indirizzo Lavoro">
 
 <button id="salvaIndirizzi">Salva indirizzi</button>
@@ -197,7 +192,6 @@ border:1px solid #ccc;
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
 <script>
 
@@ -208,14 +202,12 @@ L.tileLayer(
 {attribution:"© OpenStreetMap"}
 ).addTo(map);
 
-let cluster=L.markerClusterGroup();
-map.addLayer(cluster);
-
 let punto=null;
 let cerchio=null;
+let markers=[];
 let ultimaPosizione=null;
 
-const suggestions=document.getElementById("suggestions");
+
 
 function attiva(btn){
 
@@ -225,6 +217,8 @@ document.querySelectorAll("#opzioni button")
 btn.classList.add("attivo");
 
 }
+
+
 
 function aggiornaPunto(lat,lng){
 
@@ -246,6 +240,8 @@ ultimaPosizione={lat,lng};
 
 }
 
+
+
 function distanza(lat1,lng1,lat2,lng2){
 
 const R=6371000;
@@ -265,9 +261,12 @@ return R*c;
 
 }
 
+
+
 function pulisci(){
 
-cluster.clearLayers();
+markers.forEach(m=>map.removeLayer(m));
+markers=[];
 
 if(cerchio){
 map.removeLayer(cerchio);
@@ -276,28 +275,18 @@ cerchio=null;
 
 }
 
+
+
 function generaParcheggi(lat,lng){
 
 let arr=[];
 
-for(let i=0;i<20;i++){
+for(let i=0;i<15;i++){
 
 arr.push({
 
-lat:lat+(Math.random()-0.5)/1500,
-lng:lng+(Math.random()-0.5)/1500,
-libero:Math.random()>0.4
-
-});
-
-}
-
-for(let i=0;i<20;i++){
-
-arr.push({
-
-lat:lat+(Math.random()-0.5)/800,
-lng:lng+(Math.random()-0.5)/800,
+lat:lat+(Math.random()-0.5)/2000,
+lng:lng+(Math.random()-0.5)/2000,
 libero:Math.random()>0.4
 
 });
@@ -307,6 +296,8 @@ libero:Math.random()>0.4
 return arr;
 
 }
+
+
 
 function disegna(lat,lng){
 
@@ -346,9 +337,10 @@ radius:7,
 color:"#000",
 fillColor:p.libero?"green":"red",
 fillOpacity:0.9
-});
+}
+).addTo(map);
 
-cluster.addLayer(marker);
+markers.push(marker);
 
 }
 
@@ -359,12 +351,16 @@ document.getElementById("risultati").innerHTML=
 
 }
 
+
+
 function cerca(lat,lng){
 
 aggiornaPunto(lat,lng);
 disegna(lat,lng);
 
 }
+
+
 
 async function cercaIndirizzo(ind){
 
@@ -385,70 +381,120 @@ cerca(lat,lon);
 
 }
 
-document.getElementById("via").addEventListener("input",async function(){
 
-const q=this.value;
 
-if(q.length<3){
-suggestions.style.display="none";
-return;
+document.getElementById("via").addEventListener("keypress",function(e){
+
+if(e.key==="Enter"){
+
+const v=this.value.trim();
+
+if(v!="") cercaIndirizzo(v);
+
 }
 
-const url="https://nominatim.openstreetmap.org/search?format=json&q="+q;
-
-const res=await fetch(url);
-const data=await res.json();
-
-suggestions.innerHTML="";
-suggestions.style.display="block";
-
-data.slice(0,5).forEach(place=>{
-
-let parts=place.display_name.split(",");
-
-let text=parts[0]+" , "+parts[2];
-
-const div=document.createElement("div");
-
-div.textContent=text;
-
-div.onclick=()=>{
-
-document.getElementById("via").value=text;
-
-suggestions.style.display="none";
-
-cercaIndirizzo(place.display_name);
-
-};
-
-suggestions.appendChild(div);
-
 });
 
-});
+
 
 document.getElementById("cercaBtn").onclick=()=>{
 
 const v=document.getElementById("via").value.trim();
 
-if(v!="") cercaIndirizzo(v);
+if(v!=""){
+cercaIndirizzo(v);
+return;
+}
+
+if(ultimaPosizione){
+cerca(ultimaPosizione.lat,ultimaPosizione.lng);
+}
 
 };
 
-document.getElementById("gpsBtn").onclick=function(){
+let watchID = null;
+
+document.getElementById("gpsBtn").onclick = function(){
 
 attiva(this);
 
-navigator.geolocation.watchPosition(pos=>{
+if(watchID !== null){
+navigator.geolocation.clearWatch(watchID);
+}
 
-const lat=pos.coords.latitude;
-const lng=pos.coords.longitude;
+watchID = navigator.geolocation.watchPosition(
 
-aggiornaPunto(lat,lng);
-disegna(lat,lng);
+pos => {
 
-},{enableHighAccuracy:true});
+const lat = pos.coords.latitude;
+const lng = pos.coords.longitude;
+
+aggiornaPunto(lat, lng);
+disegna(lat, lng);
+
+},
+
+err => {
+alert("Errore GPS");
+},
+
+{
+enableHighAccuracy:true,
+maximumAge:0,
+timeout:5000
+}
+
+);
+
+};
+
+
+document.getElementById("casaBtn").onclick=function(){
+
+attiva(this);
+
+const ind=localStorage.getItem("indirizzoCasa");
+
+if(ind) cercaIndirizzo(ind);
+else alert("Inserisci casa nelle impostazioni");
+
+};
+
+
+
+document.getElementById("lavoroBtn").onclick=function(){
+
+attiva(this);
+
+const ind=localStorage.getItem("indirizzoLavoro");
+
+if(ind) cercaIndirizzo(ind);
+else alert("Inserisci lavoro nelle impostazioni");
+
+};
+
+
+
+document.getElementById("salvaIndirizzi").onclick=()=>{
+
+const casa=document.getElementById("inputCasa").value.trim();
+const lavoro=document.getElementById("inputLavoro").value.trim();
+
+if(casa) localStorage.setItem("indirizzoCasa",casa);
+if(lavoro) localStorage.setItem("indirizzoLavoro",lavoro);
+
+alert("Indirizzi salvati");
+
+};
+
+
+
+const settings=document.getElementById("settings");
+
+document.getElementById("menuBtn").onclick=()=>{
+
+settings.style.display=
+settings.style.display==="none"?"block":"none";
 
 };
 
