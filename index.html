@@ -92,10 +92,8 @@ let markers=[];
 let ultimaRicerca=null;
 
 function pulisciMappa(){
-
 markers.forEach(m=>map.removeLayer(m));
 markers=[];
-
 }
 
 function disegnaRisultati(d,raggio){
@@ -124,7 +122,7 @@ const marker=L.circleMarker(
 [p.lat,p.lng],
 {
 radius:6,
-fillColor:p.stato==="libero"?"green":"red",
+fillColor:"green",
 color:"#000",
 weight:1,
 opacity:1,
@@ -138,9 +136,7 @@ fillOpacity:0.9
 `ID:${p.id}<br>
 Stato:${p.stato}<br>
 Distanza:${p.distanza_m} m<br><br>
-<button onclick="naviga(${p.lat},${p.lng})">
-Naviga
-</button>'
+<button onclick="naviga(${p.lat},${p.lng})">Naviga</button>`
 );
 
 markers.push(marker);
@@ -150,6 +146,8 @@ markers.push(marker);
 }
 
 function cercaVia(){
+
+ultimaRicerca="via";
 
 const raggio=document.getElementById("raggio").value;
 
@@ -166,35 +164,9 @@ disegnaRisultati(datiFinti,raggio);
 
 }
 
-
-ultimaRicerca="via";
-
-.then(r=>r.json())
-
-.then(d=>{
-
-if(d.errore){
-
-alert(d.errore);
-return;
-
-}
-
-disegnaRisultati(d,raggio);
-
-})
-
-.catch(err=>{
-
-console.error(err);
-alert("Errore backend");
-
-});
-
-}
-
-
 function usaGPS(){
+
+ultimaRicerca="gps";
 
 const raggio=document.getElementById("raggio").value;
 
@@ -219,36 +191,30 @@ disegnaRisultati(datiFinti,raggio);
 
 });
 
-});
-
 }
 
 setInterval(()=>{
 
 if(ultimaRicerca==="gps"){
-
 usaGPS();
-
 }
 
 if(ultimaRicerca==="via"){
-
 cercaVia();
-
 }
 
 },5000);
 
 window.onload=()=>{
-
 usaGPS();
-
 };
 
 function naviga(lat,lng){
-  const url='https://www.google.com/maps/dir/?api=1&destination=${lat},{lng}';
-  
-  window.open(url, "_blank");
+
+const url=`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+window.open(url,"_blank");
+
 }
 
 </script>
