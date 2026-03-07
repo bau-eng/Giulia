@@ -21,14 +21,12 @@ font-family:sans-serif;
 }
 
 #controls{
-background:rgba(255,255,255,0.7);
+background:rgba(255,255,255,0.75);
 backdrop-filter:blur(6px);
 padding:8px;
 display:flex;
 flex-direction:column;
 gap:6px;
-position:relative;
-z-index:1000;
 }
 
 #via{
@@ -40,7 +38,7 @@ border:1px solid #ccc;
 
 #suggestions{
 background:rgba(255,255,255,0.9);
-border-radius:8px;
+border-radius:10px;
 max-height:150px;
 overflow:auto;
 display:none;
@@ -65,7 +63,7 @@ flex:1;
 padding:10px;
 border-radius:25px;
 border:2px solid #ccc;
-background:rgba(255,255,255,0.7);
+background:rgba(255,255,255,0.8);
 }
 
 #opzioni button.attivo{
@@ -83,21 +81,18 @@ flex:1;
 padding:10px;
 border-radius:25px;
 border:1px solid #ccc;
-background:rgba(255,255,255,0.7);
+background:rgba(255,255,255,0.8);
 }
 
 #map{
 height:60vh;
-z-index:1;
 }
 
 #risultati{
 padding:10px;
 font-size:16px;
-background:rgba(255,255,255,0.7);
+background:rgba(255,255,255,0.75);
 backdrop-filter:blur(6px);
-position:relative;
-z-index:1000;
 }
 
 #menuBtn{
@@ -202,7 +197,6 @@ border:1px solid #ccc;
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
 <script>
@@ -221,6 +215,8 @@ let punto=null;
 let cerchio=null;
 let ultimaPosizione=null;
 
+const suggestions=document.getElementById("suggestions");
+
 function attiva(btn){
 
 document.querySelectorAll("#opzioni button")
@@ -234,12 +230,15 @@ function aggiornaPunto(lat,lng){
 
 if(punto) map.removeLayer(punto);
 
-punto=L.circleMarker([lat,lng],{
+punto=L.circleMarker(
+[lat,lng],
+{
 radius:8,
 color:"white",
 fillColor:"#007aff",
 fillOpacity:1
-}).addTo(map);
+}
+).addTo(map);
 
 map.panTo([lat,lng]);
 
@@ -281,22 +280,26 @@ function generaParcheggi(lat,lng){
 
 let arr=[];
 
-for(let i=0;i<15;i++){
+for(let i=0;i<20;i++){
 
 arr.push({
+
 lat:lat+(Math.random()-0.5)/1500,
 lng:lng+(Math.random()-0.5)/1500,
 libero:Math.random()>0.4
+
 });
 
 }
 
-for(let i=0;i<15;i++){
+for(let i=0;i<20;i++){
 
 arr.push({
+
 lat:lat+(Math.random()-0.5)/800,
 lng:lng+(Math.random()-0.5)/800,
 libero:Math.random()>0.4
+
 });
 
 }
@@ -311,12 +314,15 @@ const raggio=Number(document.getElementById("raggio").value);
 
 pulisci();
 
-cerchio=L.circle([lat,lng],{
+cerchio=L.circle(
+[lat,lng],
+{
 radius:raggio,
 fillColor:"#3388ff",
 fillOpacity:0.15,
 color:null
-}).addTo(map);
+}
+).addTo(map);
 
 const parcheggi=generaParcheggi(lat,lng);
 
@@ -333,7 +339,9 @@ tot++;
 
 if(p.libero) liberi++;
 
-const marker=L.circleMarker([p.lat,p.lng],{
+const marker=L.circleMarker(
+[p.lat,p.lng],
+{
 radius:7,
 color:"#000",
 fillColor:p.libero?"green":"red",
@@ -406,7 +414,7 @@ div.textContent=text;
 
 div.onclick=()=>{
 
-via.value=text;
+document.getElementById("via").value=text;
 
 suggestions.style.display="none";
 
@@ -420,4 +428,31 @@ suggestions.appendChild(div);
 
 });
 
-document.getElementById("cercaBtn
+document.getElementById("cercaBtn").onclick=()=>{
+
+const v=document.getElementById("via").value.trim();
+
+if(v!="") cercaIndirizzo(v);
+
+};
+
+document.getElementById("gpsBtn").onclick=function(){
+
+attiva(this);
+
+navigator.geolocation.watchPosition(pos=>{
+
+const lat=pos.coords.latitude;
+const lng=pos.coords.longitude;
+
+aggiornaPunto(lat,lng);
+disegna(lat,lng);
+
+},{enableHighAccuracy:true});
+
+};
+
+</script>
+
+</body>
+</html>
