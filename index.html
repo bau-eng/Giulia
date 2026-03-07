@@ -11,10 +11,8 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#3388ff">
 
-<link
-rel="stylesheet"
-href="https://unpkg.com/leaflet/dist/leaflet.css"
-/>
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
 
@@ -25,22 +23,14 @@ font-family:sans-serif;
 
 #controls{
 display:flex;
-flex-wrap:wrap;
-gap:6px;
+gap:8px;
 padding:8px;
-background:#f5f5f5;
-}
-
-#controls input,
-#controls select,
-#controls button{
-font-size:16px;
-padding:6px;
+background:#f2f2f2;
 }
 
 #map{
-height:calc(100vh - 70px);
-width:100vw;
+height:calc(100vh - 60px);
+width:100%;
 }
 
 </style>
@@ -51,25 +41,13 @@ width:100vw;
 
 <div id="controls">
 
-<input
-id="via"
-type="text"
-placeholder="Via e numero civico (opzionale)"
->
-
 <select id="raggio">
 <option value="50">50 m</option>
 <option value="100">100 m</option>
 <option value="150">150 m</option>
 </select>
 
-<button onclick="cercaVia()">
-Cerca via
-</button>
-
-<button onclick="usaGPS()">
-Vicino a me
-</button>
+<button onclick="usaGPS()">Vicino a me</button>
 
 </div>
 
@@ -79,7 +57,7 @@ Vicino a me
 
 <script>
 
-const map = L.map("map").setView([45.1278,7.6316],16);
+const map = L.map("map").setView([45.0,7.0],16);
 
 L.tileLayer(
 "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -89,129 +67,139 @@ attribution:"© OpenStreetMap"
 ).addTo(map);
 
 let markers=[];
-let posizioneUtente = null;
-let accuratezzaGPS = null;
 let cerchioRaggio=null;
-let ultimaRicerca=null;
+let puntoUtente=null;
+let cerchioGPS=null;
 
-function pulisciMappa(){
+function pulisciParcheggi(){
 
 markers.forEach(m=>map.removeLayer(m));
 markers=[];
 
-if(cerchioRaggio){
-map.removeLayer(cerchioRaggio);
-cerchioRaggio = null;
 }
+
+function distanzaMetri(lat1,lng1,lat2,lng2){
+
+const R=6371000;
+
+const dLat=(lat2-lat1)*Math.PI/180;
+const dLng=(lng2-lng1)*Math.PI/180;
+
+const a=
+Math.sin(dLat/2)*Math.sin(dLat/2)+
+Math.cos(lat1*Math.PI/180)*
+Math.cos(lat2*Math.PI/180)*
+Math.sin(dLng/2)*Math.sin(dLng/2);
+
+const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+
+return R*c;
 
 }
 
 function aggiornaPosizione(lat,lng,accuracy){
 
-if(posizioneUtente){
-map.removeLayer(posizioneUtente);
-}
+if(puntoUtente) map.removeLayer(puntoUtente);
+if(cerchioGPS) map.removeLayer(cerchioGPS);
 
-if(accuratezzaGPS){
-map.removeLayer(accuratezzaGPS);
-}
-
-posizioneUtente = L.circleMarker(
+puntoUtente=L.circleMarker(
 [lat,lng],
 {
 radius:8,
 fillColor:"#007aff",
 color:"#ffffff",
 weight:2,
-opacity:1,
 fillOpacity:1
-}
-).addTo(map);
+}).addTo(map);
 
-accuratezzaGPS = L.circle(
+cerchioGPS=L.circle(
 [lat,lng],
 {
 radius:accuracy,
 color:"#007aff",
 fillColor:"#007aff",
 fillOpacity:0.15
-}
-).addTo(map);
+}).addTo(map);
 
 }
-function disegnaRisultati(d,raggio){
 
-pulisciMappa();
+function generaParcheggi(lat,lng){
 
-map.setView(
-[d.coordinate.lat,d.coordinate.lng],
-18
-);
+return [
 
-cerchioRaggio = L.circle(
-[d.coordinate.lat,d.coordinate.lng],
 {
-radius:Number(raggio),
+id:1,
+lat:lat+0.00018,
+lng:lng+0.00002,
+stato:"libero"
+},
+
+{
+id:2,
+lat:lat-0.00020,
+lng:lng+0.00004,
+stato:"libero"
+},
+
+{
+id:3,
+lat:lat+0.00045,
+lng:lng-0.00002,
+stato:"libero"
+}
+
+];
+
+}
+
+function disegnaParcheggi(parcheggi,lat,lng,raggio){
+
+pulisciParcheggi();
+
+if(cerchioRaggio) map.removeLayer(cerchioRaggio);
+
+cerchioRaggio=L.circle(
+[lat,lng],
+{
+radius:raggio,
 color:"#3388ff",
 fill:false
-}
-).addTo(map);
+}).addTo(map);
 
-d.parcheggi
-.filter(p => p.stato === "libero")
-.forEach(p=>{
+parcheggi.forEach(p=>{
+
+const dist=distanzaMetri(lat,lng,p.lat,p.lng);
+
+if(dist<=raggio){
 
 const marker=L.circleMarker(
 [p.lat,p.lng],
 {
-radius:6,
+radius:7,
 fillColor:"green",
 color:"#000",
 weight:1,
-opacity:1,
 fillOpacity:0.9
-}
-)
-
+})
 .addTo(map)
-
 .bindPopup(
-`ID:${p.id}<br>
-Stato:${p.stato}<br>
-Distanza:${p.distanza_m} m<br><br>
-<button onclick="naviga(${p.lat},${p.lng})">Naviga</button>`
+`Parcheggio ${p.id}<br>
+Distanza ${Math.round(dist)} m`
 );
 
 markers.push(marker);
+
+}
 
 });
 
 }
 
-function cercaVia(){
-
-ultimaRicerca="via";
-
-const raggio=document.getElementById("raggio").value;
-
-const datiFinti = {
-coordinate:{lat:45.1278,lng:7.6316},
-parcheggi:[
-{ id:1, lat:45.1279, lng:7.6317, stato:"libero", distanza_m:20 },
-{ id:2, lat:45.1280, lng:7.6315, stato:"occupato", distanza_m:30 },
-{ id:3, lat:45.1277, lng:7.6314, stato:"libero", distanza_m:40 }
-]
-};
-
-disegnaRisultati(datiFinti,raggio);
-
-}
-
 function usaGPS(){
 
-ultimaRicerca="gps";
-
-const raggio=document.getElementById("raggio").value;
+const raggio=Number(
+document.getElementById("raggio").value
+);
 
 navigator.geolocation.getCurrentPosition(pos=>{
 
@@ -219,52 +207,23 @@ const lat=pos.coords.latitude;
 const lng=pos.coords.longitude;
 const accuracy=pos.coords.accuracy;
 
+map.setView([lat,lng],18);
+
 aggiornaPosizione(lat,lng,accuracy);
 
-const datiFinti = {
+const parcheggi=generaParcheggi(lat,lng);
 
-coordinate:{lat:lat,lng:lng},
-
-parcheggi:[
-{ id:1, lat:lat+0.0002, lng:lng+0.0002, stato:"libero", distanza_m:20 },
-{ id:2, lat:lat-0.0002, lng:lng+0.0001, stato:"occupato", distanza_m:35 },
-{ id:3, lat:lat+0.0001, lng:lng-0.0002, stato:"libero", distanza_m:50 }
-]
-
-};
-
-disegnaRisultati(datiFinti,raggio);
+disegnaParcheggi(parcheggi,lat,lng,raggio);
 
 });
 
 }
 
-setInterval(()=>{
+setInterval(usaGPS,5000);
 
-if(ultimaRicerca==="gps"){
-usaGPS();
-}
-
-if(ultimaRicerca==="via"){
-cercaVia();
-}
-
-},5000);
-
-window.onload=()=>{
-usaGPS();
-};
-
-function naviga(lat,lng){
-
-const url=`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-
-window.open(url,"_blank");
-
-}
+window.onload=usaGPS;
 
 </script>
 
 </body>
-
 </html>
