@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parcheggi Smart</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3388ff">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+body {margin:0; font-family:sans-serif;}
+#controls {display:flex; flex-direction:column; gap:6px; padding:8px; background:#f2f2f2;}
+#inputVia input {width:100%; padding:10px; font-size:16px; border-radius:25px; border:1px solid #ccc;}
+#opzioni {display:flex; gap:6px; margin-top:6px; display:none;} /* nascosta inizialmente */
+#opzioni button {flex:1; padding:10px; font-size:16px; border-radius:25px; border:1px solid #ccc;}
+#raggioCerca {display:flex; gap:6px; margin-top:6px;}
+#raggioCerca select, #raggioCerca button {flex:1; padding:10px; font-size:16px; border-radius:25px; border:1px solid #ccc;}
+#map {height:calc(100vh - 200px); width:100%;}
+#settingsBtn {position:absolute; bottom:10px; right:10px; z-index:1000; font-size:24px; background:#fff; border:none; border-radius:50%; width:50px; height:50px;}
+#settingsPopup {position:absolute; bottom:70px; right:10px; z-index:1000; background:#fff; border:1px solid #ccc; padding:10px; display:none; border-radius:10px;}
+#settingsPopup input {width:100%; margin-bottom:6px; padding:6px;}
+#settingsPopup button {width:100%; padding:6px;}
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+  <!-- Riga 1: Indirizzo -->
+  <div id="inputVia">
+    <input type="text" id="via" placeholder="Cerca indirizzo">
+    <button id="primaCercaBtn">Cerca</button>
+  </div>
+
+  <!-- Riga 2: opzioni pulsanti (inizialmente nascosta) -->
+  <div id="opzioni">
+    <button id="gpsBtn">Vicino a me</button>
+    <button id="casaBtn">Casa</button>
+    <button id="lavoroBtn">Lavoro</button>
+    <button id="altroBtn">Altro</button>
+  </div>
+
+  <!-- Raggio + Cerca -->
+  <div id="raggioCerca">
+    <select id="raggio">
+      <option value="50">50 m</option>
+      <option value="100">100 m</option>
+      <option value="150">150 m</option>
+    </select>
+    <button id="cercaBtn">Cerca</button>
+  </div>
+</div>
+
+<!-- Mappa -->
+<div id="map"></div>
+
+<!-- Impostazioni -->
+<button id="settingsBtn">⋮</button>
+<div id="settingsPopup">
+  <h4>Imposta indirizzi</h4>
+  <input type="text" id="indirizzoCasa" placeholder="Casa">
+  <input type="text" id="indirizzoLavoro" placeholder="Lavoro">
+  <input type="text" id="indirizzoAltro" placeholder="Altro">
+  <button id="salvaIndirizzi">Salva</button>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+
+// ---------- MAPPA ----------
+const map = L.map("map").setView([45.0,7.0],16);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
+let markers=[], cerchioRaggio=null, puntoUtente=null;
+
+// ---------- LUOGHI RAPIDI ----------
+let luoghiRapidi = JSON.parse(localStorage.getItem("luoghiRapidi") || '{}');
+function aggiornaLuoghi() {
+  document.getElementById("casaBtn").textContent = "Casa";
+  document.getElementById("lavoroBtn").textContent = "Lavoro";
+  document.getElementById("altroBtn").textContent = "Altro";
+}
+aggiornaLuoghi();
+
+// ---------- UTILI ----------
+function pulisciParcheggi(){
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+  if(cerchioRaggio){ map.removeLayer(cerchioRaggio); cerchioRaggio=null; }
+}
+function aggiornaPunto(lat,lng){
+  if(puntoUtente) map.removeLayer(puntoUtente);
+  puntoUtente=L.circleMarker([lat,lng],{
+    radius:8, fillColor:"#007aff", color:"#ffffff", weight:2, fillOpacity:1
+  }).addTo(map);
+}
+function distanzaMetri(lat1,lng1,lat2,lng2){
+  const R=6371000;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  const c=2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+
+// ---------- PARCHEGGI FINTI ----------
+function generaParcheggi(lat,lng){
+  return [
+    {id:1,lat:lat+0.00018,lng:lng+0.00002,stato:"libero"},
+    {id:2,lat:lat-0.00020,lng:lng+0.00004,stato:"libero"},
+    {id:3,lat:lat+0.00045,lng:lng-0.00002,stato:"libero"}
+  ];
+}
+
+// ---------- DISEGNA PARCHEGGI ----------
+function disegnaParcheggi(parcheggi,lat,lng,raggio){
+  pulisciParcheggi();
+  cerchioRaggio=L.circle([lat,lng],{
+    radius:raggio,
+    color:null,
+    fillColor:"#3388ff",
+    fillOpacity:0.15,
+    interactive:false
+  }).addTo(map);
+  parcheggi.forEach(p=>{
+    const dist=distanzaMetri(lat,lng,p.lat,p.lng);
+    if(dist<=raggio){
+      const marker=L.circleMarker([p.lat,p.lng],{
+        radius:7, fillColor:"green", color:"#000", weight:1, fillOpacity:0.9
+      }).addTo(map).bindPopup(`Parcheggio ${p.id}<br>Distanza ${Math.round(dist)} m`);
+      markers.push(marker);
+    }
+  });
+}
+
+// ---------- CERCA FUNZIONE ----------
+function cerca(lat,lng){
+  const raggio=Number(document.getElementById("raggio").value);
+  aggiornaPunto(lat,lng);
+  const parcheggi=generaParcheggi(lat,lng);
+  disegnaParcheggi(parcheggi,lat,lng,raggio);
+}
+
+// ---------- PRIMA RIGA: CERCA INDIRIZZO ----------
+document.getElementById("primaCercaBtn").onclick=()=>{
+  // qui simuliamo coordinate per indirizzo inserito
+  let lat=45.1278; let lng=7.6316;
+  aggiornaPunto(lat,lng);
+  // mostriamo seconda riga
+  document.getElementById("opzioni").style.display="flex";
+  map.setView([lat,lng],map.getZoom()); // mantiene zoom attuale
+};
+
+// ---------- PULSANTI SECONDA RIGA ----------
+document.getElementById("gpsBtn").onclick=()=>{
+  navigator.geolocation.getCurrentPosition(pos=>{
+    cerca(pos.coords.latitude,pos.coords.longitude);
+  });
+};
+document.getElementById("casaBtn").onclick=()=>{
+  if(luoghiRapidi.Casa) cerca(luoghiRapidi.Casa.lat,luoghiRapidi.Casa.lng);
+};
+document.getElementById("lavoroBtn").onclick=()=>{
+  if(luoghiRapidi.Lavoro) cerca(luoghiRapidi.Lavoro.lat,luoghiRapidi.Lavoro.lng);
+};
+document.getElementById("altroBtn").onclick=()=>{
+  const nome=prompt("Inserisci nome luogo");
+  const lat=parseFloat(prompt("Latitudine"));
+  const lng=parseFloat(prompt("Longitudine"));
+  if(nome && !isNaN(lat) && !isNaN(lng)){
+    luoghiRapidi[nome]={lat,lng};
+    localStorage.setItem("luoghiRapidi",JSON.stringify(luoghiRapidi));
+    alert("Salvato!");
+  }
+};
+
+// ---------- TASTO IMPOSTAZIONI ----------
+const settingsBtn=document.getElementById("settingsBtn");
+const settingsPopup=document.getElementById("settingsPopup");
+settingsBtn.onclick=()=>settingsPopup.style.display=(settingsPopup.style.display==="none")?"block":"none";
+
+// Salva indirizzi tramite popup
+document.getElementById("salvaIndirizzi").onclick=()=>{
+  const casa=document.getElementById("indirizzoCasa").value.trim();
+  const lavoro=document.getElementById("indirizzoLavoro").value.trim();
+  const altro=document.getElementById("indirizzoAltro").value.trim();
+  if(casa) luoghiRapidi.Casa={lat:45.128,lng:7.632};
+  if(lavoro) luoghiRapidi.Lavoro={lat:45.126,lng:7.630};
+  if(altro) luoghiRapidi.Altro={lat:45.125,lng:7.635};
+  localStorage.setItem("luoghiRapidi",JSON.stringify(luoghiRapidi));
+  alert("Indirizzi salvati!");
+  settingsPopup.style.display="none";
+};
+
+</script>
+</body>
+</html>
