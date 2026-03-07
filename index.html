@@ -10,15 +10,16 @@ body{margin:0;font-family:sans-serif;}
 #controls{background:#f3f3f3;padding:8px;display:flex;flex-direction:column;gap:6px;}
 #via{padding:10px;font-size:16px;border-radius:25px;border:1px solid #ccc;width:80%;}
 #cercaBtnRiga1{padding:10px;border-radius:25px;border:1px solid #ccc;background:#007aff;color:white;cursor:pointer;}
-#luoghiBar{display:flex;gap:6px;overflow-x:auto;align-items:center;}
+#luoghiBarWrapper{display:flex;align-items:center;gap:6px;overflow:hidden;}
+#luoghiBar{display:flex;gap:6px;overflow-x:auto;}
 .luogoBtn{padding:8px 14px;border-radius:20px;border:1px solid #ccc;background:white;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:4px;}
 .luogoBtn.attivo{border-color:green;}
 .luogoBtn span{margin-right:4px;}
-#raggio{padding:10px;border-radius:20px;border:1px solid #ccc;}
+#luoghiBtnMenu{flex-shrink:0;padding:8px 12px;border-radius:20px;border:1px solid #ccc;background:#eee;cursor:pointer;}
+#raggio{padding:10px;border-radius:20px;border:1px solid #ccc;margin-top:6px;}
 #map{height:60vh;}
 #risultati{padding:10px;background:white;}
 #gpsBtn{position:absolute;bottom:20px;right:20px;width:50px;height:50px;border-radius:50%;border:none;font-size:20px;background:white;z-index:2000;box-shadow:0 2px 8px rgba(0,0,0,0.2);cursor:pointer;}
-#menuBtn{margin-left:auto;width:40px;height:40px;border-radius:50%;border:none;font-size:26px;background:white;z-index:2000;box-shadow:0 2px 8px rgba(0,0,0,0.2);cursor:pointer;flex-shrink:0;}
 #settings{position:absolute;top:60px;right:20px;background:white;padding:12px;border-radius:12px;border:1px solid #ccc;display:none;z-index:2000;width:250px;}
 #settings input{width:100%;padding:8px;margin-bottom:6px;border-radius:6px;border:1px solid #ccc;}
 #addPlace{width:100%;padding:8px;border-radius:6px;border:1px solid #ccc;background:#eee;cursor:pointer;}
@@ -31,7 +32,10 @@ body{margin:0;font-family:sans-serif;}
     <input id="via" placeholder="Cerca indirizzo">
     <button id="cercaBtnRiga1">Cerca</button>
   </div>
-  <div id="luoghiBar"></div>
+  <div id="luoghiBarWrapper">
+    <div id="luoghiBar"></div>
+    <div id="luoghiBtnMenu">Luoghi preferiti</div>
+  </div>
   <select id="raggio">
     <option value="50">Raggio 50 m</option>
     <option value="100">Raggio 100 m</option>
@@ -63,6 +67,7 @@ let luoghi=JSON.parse(localStorage.getItem("luoghi")||"[]");
 function aggiornaPunto(lat,lng){
   if(!punto) punto = L.circleMarker([lat,lng],{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}).addTo(map);
   else punto.setLatLng([lat,lng]);
+  punto.bringToFront(); // sempre visibile
 }
 
 function pulisci(){
@@ -149,25 +154,18 @@ function aggiornaLuoghi(){
     const btn=document.createElement("div"); btn.className="luogoBtn";
     const span = document.createElement("span"); span.textContent=l.nome; btn.appendChild(span);
     const edit=document.createElement("button"); edit.textContent="✎"; edit.style.fontSize="12px";
-    edit.onclick=()=>{
+    edit.onclick=(e)=>{
+      e.stopPropagation();
       const newNome=prompt("Nome luogo:",l.nome);
       const newInd=prompt("Indirizzo:",l.indirizzo);
-      if(newNome && newInd){
-        luoghi[i]={nome:newNome,indirizzo:newInd};
-        localStorage.setItem("luoghi",JSON.stringify(luoghi));
-        aggiornaLuoghi();
-      }
+      if(newNome && newInd){ luoghi[i]={nome:newNome,indirizzo:newInd}; localStorage.setItem("luoghi",JSON.stringify(luoghi)); aggiornaLuoghi();}
     }
     const del=document.createElement("button"); del.textContent="✖"; del.style.fontSize="12px";
-    del.onclick=()=>{ if(confirm("Eliminare questo luogo?")){ luoghi.splice(i,1); localStorage.setItem("luoghi",JSON.stringify(luoghi)); aggiornaLuoghi(); }}
+    del.onclick=(e)=>{ e.stopPropagation(); if(confirm("Eliminare questo luogo?")){ luoghi.splice(i,1); localStorage.setItem("luoghi",JSON.stringify(luoghi)); aggiornaLuoghi(); }}
     btn.appendChild(edit); btn.appendChild(del);
     btn.onclick=()=>cercaIndirizzo(l.indirizzo);
     bar.appendChild(btn);
   });
-  // tre puntini sempre a destra
-  const menuBtn=document.createElement("button"); menuBtn.id="menuBtn"; menuBtn.textContent="⋮";
-  menuBtn.onclick=()=>{ document.getElementById("settings").style.display = document.getElementById("settings").style.display==="none"?"block":"none"; }
-  bar.appendChild(menuBtn);
 }
 
 document.getElementById("addPlace").onclick=()=>{
@@ -177,6 +175,10 @@ document.getElementById("addPlace").onclick=()=>{
   luoghi.push({nome,indirizzo});
   localStorage.setItem("luoghi",JSON.stringify(luoghi));
   aggiornaLuoghi();
+}
+
+document.getElementById("luoghiBtnMenu").onclick=()=>{
+  document.getElementById("settings").style.display = document.getElementById("settings").style.display==="none"?"block":"none";
 }
 
 aggiornaLuoghi();
