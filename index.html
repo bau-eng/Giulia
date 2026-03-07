@@ -70,6 +70,7 @@ let markers=[];
 let cerchioRaggio=null;
 let puntoUtente=null;
 let cerchioGPS=null;
+let primaVolta=true;
 
 function pulisciParcheggi(){
 
@@ -205,10 +206,15 @@ navigator.geolocation.getCurrentPosition(pos=>{
 
 const lat=pos.coords.latitude;
 const lng=pos.coords.longitude;
-const accuracy=pos.coords.accuracy;
+const accuracy=Math.min(pos.coords.accuracy,30);
+
+if(primaVolta){
 
 map.setView([lat,lng],18);
+primaVolta=false;
 
+}
+  
 aggiornaPosizione(lat,lng,accuracy);
 
 const parcheggi=generaParcheggi(lat,lng);
