@@ -225,9 +225,36 @@ disegnaParcheggi(parcheggi,lat,lng,raggio);
 
 }
 
-setInterval(usaGPS,5000);
+navigator.geolocation.watchPosition(pos=>{
 
-window.onload=usaGPS;
+const lat=pos.coords.latitude;
+const lng=pos.coords.longitude;
+const accuracy=Math.min(pos.coords.accuracy,30);
+
+const raggio=Number(
+document.getElementById("raggio").value
+);
+
+if(primaVolta){
+
+map.setView([lat,lng],18);
+primaVolta=false;
+
+}
+
+aggiornaPosizione(lat,lng,accuracy);
+
+const parcheggi=generaParcheggi(lat,lng);
+
+disegnaParcheggi(parcheggi,lat,lng,raggio);
+
+},
+err=>console.log(err),
+{
+enableHighAccuracy:true,
+maximumAge:1000,
+timeout:5000
+});
 
 </script>
 <script>
