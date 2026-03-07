@@ -412,23 +412,41 @@ cerca(ultimaPosizione.lat,ultimaPosizione.lng);
 
 };
 
+let watchID = null;
 
-
-document.getElementById("gpsBtn").onclick=function(){
+document.getElementById("gpsBtn").onclick = function(){
 
 attiva(this);
 
-navigator.geolocation.getCurrentPosition(pos=>{
+if(watchID !== null){
+navigator.geolocation.clearWatch(watchID);
+}
 
-cerca(
-pos.coords.latitude,
-pos.coords.longitude
+watchID = navigator.geolocation.watchPosition(
+
+pos => {
+
+const lat = pos.coords.latitude;
+const lng = pos.coords.longitude;
+
+aggiornaPunto(lat, lng);
+disegna(lat, lng);
+
+},
+
+err => {
+alert("Errore GPS");
+},
+
+{
+enableHighAccuracy:true,
+maximumAge:0,
+timeout:5000
+}
+
 );
 
-});
-
 };
-
 
 
 document.getElementById("casaBtn").onclick=function(){
