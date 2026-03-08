@@ -8,6 +8,8 @@
 <style>
 body{margin:0;font-family:sans-serif;}
 #map{height:100vh;}
+
+/* --- Controlli sopra la mappa --- */
 #controls{position:absolute;top:10px;left:10px;right:10px;z-index:2000;display:flex;flex-direction:column;gap:6px;pointer-events:auto;}
 #via{padding:10px;font-size:16px;border-radius:25px;border:1px solid #ccc;background:rgba(255,255,255,0.8);}
 #cercaBtnRiga1{padding:10px;border-radius:25px;border:1px solid #ccc;background:#007aff;color:white;cursor:pointer;}
@@ -17,7 +19,11 @@ body{margin:0;font-family:sans-serif;}
 .luogoBtn.attivo{border-color:green;}
 .luogoBtn span{margin-right:4px;}
 #luoghiBtnMenu{flex-shrink:0;padding:8px 12px;border-radius:20px;border:1px solid #ccc;background:rgba(240,240,240,0.9);cursor:pointer;white-space:nowrap;}
+
+/* --- GPS --- */
 #gpsBtn{position:absolute;bottom:20px;right:20px;width:50px;height:50px;border-radius:50%;border:none;font-size:20px;background:white;z-index:2000;box-shadow:0 2px 8px rgba(0,0,0,0.2);cursor:pointer;}
+
+/* --- Settings --- */
 #settings{position:absolute;top:60px;right:10px;background:white;padding:12px;border-radius:12px;border:1px solid #ccc;display:none;z-index:2000;width:250px;}
 #settings input{width:100%;padding:8px;margin-bottom:6px;border-radius:6px;border:1px solid #ccc;}
 #addPlace{width:100%;padding:8px;border-radius:6px;border:1px solid #ccc;background:#eee;cursor:pointer;}
@@ -57,31 +63,64 @@ body{margin:0;font-family:sans-serif;}
 let map = L.map("map").setView([41.9,12.5],16);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
 
-let puntoAttuale=null, cerchioAttuale=null;
-let puntoDest=null, cerchio=null;
-let markers=[];
-let centroSelezionato=null;
-let luoghi=JSON.parse(localStorage.getItem("luoghi")||"[]");
+let markers = [], cerchio=null;
+let puntoAttuale = null, cerchioAttuale = null;
+let centroSelezionato = null; // centro attuale (riga1, riga2 o gps)
+let luoghi = JSON.parse(localStorage.getItem("luoghi") || "[]");
 
-// ---- Funzioni ----
-function aggiornaPuntoAttuale(lat,lng){
-  if(puntoAttuale) puntoAttuale.setLatLng([lat,lng]);
-  else puntoAttuale = L.circleMarker([lat,lng], {radius:8, color:"white", fillColor:"#007aff", fillOpacity:1}).addTo(map);
+// ---- Pulsante GPS ----
+document.getElementById("gpsBtn").onclick = ()=>{
+  if(!navigator.geolocation) return alert("GPS non disponibile");
+
+  // Evidenzia pulsante GPS
+  document.querySelectorAll(".luogoBtn").forEach(b=>b.classList.remove("attivo"));
+  document.getElementById("gpsBtn").style.border="3px solid green";
+
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const lat=pos.coords.latitude, lng=pos.coords.longitude;
+
+    centroSelezionato = {lat,lng,tipo:"gps"};
+
+    // punto blu
+    if(puntoAttuale) puntoAttuale.setLatLng([lat,lng]);
+    else puntoAttuale = L.circleMarker([lat,lng], {radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}).addTo(map);
+
+    // cerchio attorno a GPS con bordo spesso
+    const raggio = Number(document.getElementById("raggio").value);
+    if(cerchioAttuale){
+      cerchioAttuale.setLatLng([lat,lng]);
+      cerchioAttuale.setRadius(raggio);
+      cerchioAttuale.setStyle({weight:4}); // bordo più spesso
+    } else {
+      cerchioAttuale = L.circle([lat,lng], {radius:raggio,fillColor:"#007aff",fillOpacity:0.15,color:"green",weight:4}).addTo(map);
+    }
+
+    // disegna parcheggi nel raggio
+    disegnaParcheggi(lat,lng);
+
+    // mappa centrata sul punto blu
+    map.panTo([lat,lng]);
+  }, err=>alert("Errore GPS"));
 }
 
-function aggiornaCerchioAttuale(lat,lng){
-  const raggio=Number(document.getElementById("raggio").value);
-  if(cerchioAttuale) cerchioAttuale.setLatLng([lat,lng]).setRadius(raggio);
-  else cerchioAttuale = L.circle([lat,lng], {radius:raggio, fillColor:"#007aff", fillOpacity:0.15, color:null}).addTo(map);
+// ---- Aggiorna raggio ----
+document.getElementById("raggio").onchange=()=>{
+  if(centroSelezionato){
+    const lat=centroSelezionato.lat;
+    const lng=centroSelezionato.lng;
+    const raggio = Number(document.getElementById("raggio").value);
+
+    if(centroSelezionato.tipo==="gps"){
+      if(cerchioAttuale) cerchioAttuale.setRadius(raggio);
+      disegnaParcheggi(lat,lng);
+    } else {
+      if(cerchio) cerchio.setRadius(raggio);
+      disegnaParcheggi(lat,lng);
+    }
+  }
 }
 
-function pulisci(){
-  markers.forEach(m=>map.removeLayer(m));
-  markers=[];
-  if(cerchio){ map.removeLayer(cerchio); cerchio=null; }
-  if(puntoDest){ puntoDest.remove(); puntoDest=null; }
-}
-
+// ---- Distanza ----
 function distanza(lat1,lng1,lat2,lng2){
   const R=6371000;
   const dLat=(lat2-lat1)*Math.PI/180;
@@ -91,63 +130,65 @@ function distanza(lat1,lng1,lat2,lng2){
   return R*c;
 }
 
+// ---- Genera parcheggi casuali ----
 function generaParcheggi(lat,lng){
   let arr=[];
-  for(let i=0;i<20;i++){
+  for(let i=0;i<15;i++){
     arr.push({lat:lat+(Math.random()-0.5)/2000,lng:lng+(Math.random()-0.5)/2000,libero:Math.random()>0.4});
   }
   return arr;
 }
 
+// ---- Disegna parcheggi ----
 function disegnaParcheggi(lat,lng){
-  const raggio=Number(document.getElementById("raggio").value);
-  pulisci();
-  cerchio=L.circle([lat,lng],{radius:raggio, fillColor:"#3388ff", fillOpacity:0.15, color:"green", weight:3}).addTo(map);
+  // pulizia markers precedenti
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+
+  const raggio = Number(document.getElementById("raggio").value);
+  // cerchio
+  if(centroSelezionato.tipo!=="gps"){
+    if(cerchio) cerchio.setLatLng([lat,lng]).setRadius(raggio);
+    else cerchio = L.circle([lat,lng], {radius:raggio,fillColor:"#3388ff",fillOpacity:0.15,color:"green",weight:4}).addTo(map);
+  }
+
   const parcheggi = generaParcheggi(lat,lng);
   let tot=0, liberi=0;
   parcheggi.forEach(p=>{
     const dist=distanza(lat,lng,p.lat,p.lng);
     if(dist<=raggio){
       tot++; if(p.libero) liberi++;
-      const marker = L.circleMarker([p.lat,p.lng],{radius:7, color:"#000", fillColor:p.libero?"green":"red", fillOpacity:0.9}).addTo(map);
+      const marker=L.circleMarker([p.lat,p.lng],{radius:7,fillColor:p.libero?"green":"red",color:"#000",fillOpacity:0.9}).addTo(map);
       markers.push(marker);
     }
   });
   document.getElementById("risultati").innerHTML="Parcheggi totali: "+tot+"<br>Parcheggi liberi: "+liberi;
 }
 
-// ---- Cerca indirizzo riga1 ----
+// ---- Aggiorna pallino per riga1/riga2 ----
+let punto=null;
+function aggiornaPunto(lat,lng){
+  if(!punto) punto = L.circleMarker([lat,lng],{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}).addTo(map);
+  else punto.setLatLng([lat,lng]);
+  punto.bringToFront();
+}
+
+// ---- Cerca indirizzo ----
 async function cercaIndirizzo(ind){
   const url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(ind);
   const res=await fetch(url); const data=await res.json();
   if(data.length==0){ alert("Indirizzo non trovato"); return; }
   const lat=parseFloat(data[0].lat), lon=parseFloat(data[0].lon);
-  centroSelezionato={lat,lon};
-  if(puntoDest) puntoDest.setLatLng([lat,lon]);
-  else puntoDest=L.circleMarker([lat,lon], {radius:8,color:"orange",fillColor:"orange",fillOpacity:1}).addTo(map);
-  disegnaParcheggi(lat,lon);
+  centroSelezionato={lat,lon,tipo:"indirizzo"};
+  aggiornaPunto(lat,lon);
   map.setView([lat,lon],16);
+  disegnaParcheggi(lat,lon);
 }
 
-document.getElementById("cercaBtnRiga1").onclick=()=>{
+// ---- Eventi ----
+document.getElementById("cercaBtnRiga1").onclick = ()=>{
   const v=document.getElementById("via").value.trim();
   if(v!="") cercaIndirizzo(v);
-}
-
-// ---- Aggiorna raggio ----
-document.getElementById("raggio").onchange=()=>{
-  if(centroSelezionato) disegnaParcheggi(centroSelezionato.lat,centroSelezionato.lon);
-}
-
-// ---- Pulsante GPS solo per posizione attuale ----
-document.getElementById("gpsBtn").onclick=()=>{
-  if(!navigator.geolocation) return alert("GPS non disponibile");
-  navigator.geolocation.getCurrentPosition(pos=>{
-    const lat=pos.coords.latitude, lng=pos.coords.longitude;
-    aggiornaPuntoAttuale(lat,lng);
-    aggiornaCerchioAttuale(lat,lng);
-    disegnaParcheggi(lat,lng);
-  }, err=>alert("Errore GPS"));
 }
 
 // ---- Luoghi dinamici ----
@@ -155,15 +196,18 @@ function aggiornaLuoghi(){
   const bar=document.getElementById("luoghiBar"); bar.innerHTML="";
   luoghi.forEach((l,i)=>{
     const btn=document.createElement("div"); btn.className="luogoBtn";
-    const span=document.createElement("span"); span.textContent=l.nome; btn.appendChild(span);
+    const span = document.createElement("span"); span.textContent=l.nome; btn.appendChild(span);
+
     const edit=document.createElement("button"); edit.textContent="✎"; edit.style.fontSize="12px";
     edit.onclick=(e)=>{ e.stopPropagation();
       const newNome=prompt("Nome luogo:",l.nome);
       const newInd=prompt("Indirizzo:",l.indirizzo);
       if(newNome && newInd){ luoghi[i]={nome:newNome,indirizzo:newInd}; localStorage.setItem("luoghi",JSON.stringify(luoghi)); aggiornaLuoghi();}
     }
+
     const del=document.createElement("button"); del.textContent="✖"; del.style.fontSize="12px";
     del.onclick=(e)=>{ e.stopPropagation(); if(confirm("Eliminare questo luogo?")){ luoghi.splice(i,1); localStorage.setItem("luoghi",JSON.stringify(luoghi)); aggiornaLuoghi(); }}
+
     btn.appendChild(edit); btn.appendChild(del);
     btn.onclick=()=>{ cercaIndirizzo(l.indirizzo); document.querySelectorAll(".luogoBtn").forEach(b=>b.classList.remove("attivo")); btn.classList.add("attivo"); }
     bar.appendChild(btn);
@@ -173,16 +217,16 @@ function aggiornaLuoghi(){
 document.getElementById("addPlace").onclick=()=>{
   const nome=document.getElementById("nomeLuogo").value.trim();
   const indirizzo=document.getElementById("indirizzoLuogo").value.trim();
-  if(!nome||!indirizzo) return;
+  if(!nome || !indirizzo) return;
   luoghi.push({nome,indirizzo});
   localStorage.setItem("luoghi",JSON.stringify(luoghi));
   aggiornaLuoghi();
-  document.getElementById("settings").style.display="none";
+  document.getElementById("settings").style.display="none"; // chiude popup
 }
 
 document.getElementById("luoghiBtnMenu").onclick=()=>{
   const s=document.getElementById("settings");
-  s.style.display=s.style.display==="none"?"block":"none";
+  s.style.display = s.style.display==="none"?"block":"none";
 }
 
 aggiornaLuoghi();
