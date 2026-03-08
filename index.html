@@ -206,6 +206,7 @@ let puntoAttuale=null;
 let cerchioAttuale=null;
 
 let centroSelezionato=null;
+let GPS attivo=false;
 
 let luoghi=JSON.parse(localStorage.getItem("luoghi")||"[]");
 
@@ -215,6 +216,8 @@ document.getElementById("gpsBtn").onclick=()=>{
 
 if(!navigator.geolocation)
 return alert("GPS non disponibile");
+
+gpsAttivo=true;
 
 document.querySelectorAll(".luogoBtn").forEach(b=>b.classList.remove("attivo"));
 document.getElementById("gpsBtn").style.border="4px solid green";
@@ -248,7 +251,7 @@ disegnaParcheggi(lat,lng);
 
 map.panTo([lat,lng]);
 
-},err=>alert("Errore GPS"));
+});
 
 };
 
@@ -391,6 +394,9 @@ punto.bringToFront();
 /* cerca indirizzo */
 
 async function cercaIndirizzo(ind){
+
+GPS attivo=false;
+document.getElementbyId("gpsBtn").style.border="3px solid #ccc";
 
 const url=
 "https://nominatim.openstreetmap.org/search?format=json&q="+
