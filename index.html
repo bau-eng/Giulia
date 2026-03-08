@@ -411,7 +411,16 @@ if(p.libero){
 
 marker.on("click",()=>{
 
-markers.forEach(m=>m.setStyle({radius:7}));
+markers.forEach(m=>{
+
+const libero=m.options.fillColor==="green";
+
+m.setStyle({
+radius:7,
+fillColor:libero?"green":"red"
+});
+
+});
 
 marker.setStyle({
 radius:12,
@@ -478,6 +487,17 @@ async function cercaIndirizzo(ind){
 
 document.getElementById("gpsBtn").classList.remove("attivo");
 gpsAttivo=false;
+/* rimuove il cerchio GPS */
+
+if(cerchioAttuale){
+map.removeLayer(cerchioAttuale);
+cerchioAttuale=null;
+}
+
+if(puntoAttuale){
+map.removeLayer(puntoAttuale);
+puntoAttuale=null;
+}
 
 const url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(ind);
 
