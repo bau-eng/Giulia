@@ -72,4 +72,425 @@ gap:4px;
 border:3px solid green;
 }
 
-#lu
+#luoghiBtnMenu{
+flex-shrink:0;
+padding:8px 12px;
+border-radius:20px;
+border:1px solid #ccc;
+background:rgba(240,240,240,0.9);
+cursor:pointer;
+white-space:nowrap;
+}
+
+/* Riga 3 */
+
+#terzaRiga{
+display:flex;
+gap:8px;
+}
+
+#gpsBtn{
+flex:1;
+padding:10px;
+border-radius:20px;
+border:1px solid #ccc;
+background:rgba(255,255,255,0.9);
+cursor:pointer;
+font-size:15px;
+}
+
+#gpsBtn.attivo{
+border:3px solid green;
+}
+
+#raggio{
+flex:1;
+padding:10px;
+border-radius:20px;
+border:1px solid #ccc;
+background:rgba(255,255,255,0.9);
+font-size:15px;
+}
+
+/* Popup */
+
+#settings{
+position:absolute;
+top:70px;
+right:10px;
+background:white;
+padding:12px;
+border-radius:12px;
+border:1px solid #ccc;
+display:none;
+z-index:2000;
+width:250px;
+}
+
+#settings input{
+width:100%;
+padding:8px;
+margin-bottom:6px;
+border-radius:6px;
+border:1px solid #ccc;
+}
+
+#addPlace{
+width:100%;
+padding:8px;
+border-radius:6px;
+border:1px solid #ccc;
+background:#eee;
+cursor:pointer;
+}
+
+#risultati{
+position:absolute;
+bottom:20px;
+left:10px;
+padding:10px;
+background:rgba(255,255,255,0.9);
+z-index:2000;
+font-size:16px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+
+<div style="display:flex;gap:6px;">
+<input id="via" placeholder="Cerca indirizzo">
+<button id="cercaBtnRiga1">Cerca</button>
+</div>
+
+<div id="luoghiBarWrapper">
+<div id="luoghiBar"></div>
+<div id="luoghiBtnMenu">Luoghi preferiti</div>
+</div>
+
+<div id="terzaRiga">
+<button id="gpsBtn">Vicino a me</button>
+
+<select id="raggio">
+<option value="50">Raggio 50 m</option>
+<option value="100">Raggio 100 m</option>
+<option value="150">Raggio 150 m</option>
+</select>
+</div>
+
+</div>
+
+<div id="map"></div>
+
+<div id="risultati"></div>
+
+<div id="settings">
+<input id="nomeLuogo" placeholder="Nome luogo">
+<input id="indirizzoLuogo" placeholder="Indirizzo">
+<button id="addPlace">Aggiungi luogo</button>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+let map = L.map("map").setView([41.9,12.5],16);
+
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+{attribution:"© OpenStreetMap"}
+).addTo(map);
+
+let markers=[];
+let cerchio=null;
+
+let puntoAttuale=null;
+let cerchioAttuale=null;
+
+let centroSelezionato=null;
+let gpsAttivo=false;
+
+let luoghi=JSON.parse(localStorage.getItem("luoghi")||"[]");
+
+/* GPS */
+
+document.getElementById("gpsBtn").onclick=()=>{
+
+if(!navigator.geolocation)
+return alert("GPS non disponibile");
+
+gpsAttivo=true;
+
+document.getElementById("gpsBtn").classList.add("attivo");
+document.querySelectorAll(".luogoBtn").forEach(b=>b.classList.remove("attivo"));
+
+navigator.geolocation.getCurrentPosition(pos=>{
+
+const lat=pos.coords.latitude;
+const lng=pos.coords.longitude;
+
+centroSelezionato={lat,lng,tipo:"gps"};
+
+if(puntoAttuale)
+puntoAttuale.setLatLng([lat,lng]);
+else
+puntoAttuale=L.circleMarker([lat,lng],
+{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}
+).addTo(map);
+
+const raggio=Number(document.getElementById("raggio").value);
+
+if(cerchioAttuale){
+cerchioAttuale.setLatLng([lat,lng]);
+cerchioAttuale.setRadius(raggio);
+}else{
+cerchioAttuale=L.circle([lat,lng],
+{radius:raggio,fillColor:"#007aff",fillOpacity:0.15,color:"green",weight:4}
+).addTo(map);
+}
+
+disegnaParcheggi(lat,lng);
+
+map.panTo([lat,lng]);
+
+});
+
+};
+
+/* RAGGIO */
+
+document.getElementById("raggio").onchange=()=>{
+
+const raggio=Number(document.getElementById("raggio").value);
+
+if(!centroSelezionato) return;
+
+if(centroSelezionato.tipo==="gps"){
+
+if(cerchioAttuale)
+cerchioAttuale.setRadius(raggio);
+
+disegnaParcheggi(centroSelezionato.lat,centroSelezionato.lng);
+
+}else{
+
+if(cerchio)
+cerchio.setRadius(raggio);
+
+disegnaParcheggi(centroSelezionato.lat,centroSelezionato.lon);
+
+}
+
+};
+
+/* distanza */
+
+function distanza(lat1,lng1,lat2,lng2){
+
+const R=6371000;
+
+const dLat=(lat2-lat1)*Math.PI/180;
+const dLng=(lng2-lng1)*Math.PI/180;
+
+const a=
+Math.sin(dLat/2)**2+
+Math.cos(lat1*Math.PI/180)*
+Math.cos(lat2*Math.PI/180)*
+Math.sin(dLng/2)**2;
+
+const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+
+return R*c;
+
+}
+
+/* parcheggi demo */
+
+function generaParcheggi(lat,lng){
+
+let arr=[];
+
+for(let i=0;i<15;i++){
+
+arr.push({
+lat:lat+(Math.random()-0.5)/2000,
+lng:lng+(Math.random()-0.5)/2000,
+libero:Math.random()>0.4
+});
+
+}
+
+return arr;
+
+}
+
+/* disegna parcheggi */
+
+function disegnaParcheggi(lat,lng){
+
+markers.forEach(m=>map.removeLayer(m));
+markers=[];
+
+const raggio=Number(document.getElementById("raggio").value);
+
+if(centroSelezionato.tipo!=="gps"){
+
+if(cerchio)
+cerchio.setLatLng([lat,lng]).setRadius(raggio);
+else
+cerchio=L.circle([lat,lng],
+{radius:raggio,fillColor:"#3388ff",fillOpacity:0.15,color:"green",weight:4}
+).addTo(map);
+
+}
+
+const parcheggi=generaParcheggi(lat,lng);
+
+let tot=0;
+let liberi=0;
+
+parcheggi.forEach(p=>{
+
+const dist=distanza(lat,lng,p.lat,p.lng);
+
+if(dist<=raggio){
+
+tot++;
+
+if(p.libero) liberi++;
+
+const marker=L.circleMarker([p.lat,p.lng],
+{radius:7,fillColor:p.libero?"green":"red",color:"#000",fillOpacity:0.9}
+).addTo(map);
+
+markers.push(marker);
+
+}
+
+});
+
+document.getElementById("risultati").innerHTML=
+"Parcheggi totali: "+tot+"<br>Parcheggi liberi: "+liberi;
+
+}
+
+/* punto indirizzo */
+
+let punto=null;
+
+function aggiornaPunto(lat,lng){
+
+document.getElementById("gpsBtn").classList.remove("attivo");
+gpsAttivo=false;
+
+if(!punto)
+punto=L.circleMarker([lat,lng],
+{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}
+).addTo(map);
+else
+punto.setLatLng([lat,lng]);
+
+punto.bringToFront();
+
+}
+
+/* cerca indirizzo */
+
+async function cercaIndirizzo(ind){
+
+document.getElementById("gpsBtn").classList.remove("attivo");
+gpsAttivo=false;
+
+const url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(ind);
+
+const res=await fetch(url);
+const data=await res.json();
+
+if(data.length==0){
+alert("Indirizzo non trovato");
+return;
+}
+
+const lat=parseFloat(data[0].lat);
+const lon=parseFloat(data[0].lon);
+
+centroSelezionato={lat,lon,tipo:"indirizzo"};
+
+aggiornaPunto(lat,lon);
+
+map.setView([lat,lon],16);
+
+disegnaParcheggi(lat,lon);
+
+}
+
+/* eventi */
+
+document.getElementById("cercaBtnRiga1").onclick=()=>{
+
+const v=document.getElementById("via").value.trim();
+
+if(v!="") cercaIndirizzo(v);
+
+};
+
+/* luoghi */
+
+function aggiornaLuoghi(){
+
+const bar=document.getElementById("luoghiBar");
+bar.innerHTML="";
+
+luoghi.forEach((l,i)=>{
+
+const btn=document.createElement("div");
+btn.className="luogoBtn";
+btn.textContent=l.nome;
+
+btn.onclick=()=>{
+cercaIndirizzo(l.indirizzo);
+
+document.querySelectorAll(".luogoBtn").forEach(b=>b.classList.remove("attivo"));
+btn.classList.add("attivo");
+};
+
+bar.appendChild(btn);
+
+});
+
+}
+
+document.getElementById("addPlace").onclick=()=>{
+
+const nome=document.getElementById("nomeLuogo").value.trim();
+const indirizzo=document.getElementById("indirizzoLuogo").value.trim();
+
+if(!nome || !indirizzo) return;
+
+luoghi.push({nome,indirizzo});
+
+localStorage.setItem("luoghi",JSON.stringify(luoghi));
+
+aggiornaLuoghi();
+
+document.getElementById("settings").style.display="none";
+
+};
+
+document.getElementById("luoghiBtnMenu").onclick=()=>{
+
+const s=document.getElementById("settings");
+
+s.style.display = s.style.display==="none"?"block":"none";
+
+};
+
+aggiornaLuoghi();
+
+</script>
+
+</body>
+</html>
