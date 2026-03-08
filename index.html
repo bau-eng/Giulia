@@ -104,19 +104,18 @@ document.getElementById("gpsBtn").onclick = ()=>{
 }
 
 // ---- Aggiorna raggio ----
-document.getElementById("raggio").onchange=()=>{
-  if(centroSelezionato){
-    const lat=centroSelezionato.lat;
-    const lng=centroSelezionato.lng;
-    const raggio = Number(document.getElementById("raggio").value);
+document.getElementById("raggio").onchange = () => {
+  const raggio = Number(document.getElementById("raggio").value);
+  if (!centroSelezionato) return;
 
-    if(centroSelezionato.tipo==="gps"){
-      if(cerchioAttuale) cerchioAttuale.setRadius(raggio);
-      disegnaParcheggi(lat,lng);
-    } else {
-      if(cerchio) cerchio.setRadius(raggio);
-      disegnaParcheggi(lat,lng);
-    }
+  // Aggiorna cerchio e parcheggi a seconda del tipo
+  if (centroSelezionato.tipo === "gps") {
+    if (cerchioAttuale) cerchioAttuale.setRadius(raggio);
+    disegnaParcheggi(centroSelezionato.lat, centroSelezionato.lng);
+  } else {
+    // per riga1 e riga2
+    if (cerchio) cerchio.setRadius(raggio);
+    disegnaParcheggi(centroSelezionato.lat, centroSelezionato.lon);
   }
 }
 
