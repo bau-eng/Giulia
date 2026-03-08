@@ -63,72 +63,19 @@ body{margin:0;font-family:sans-serif;}
 let map = L.map("map").setView([41.9,12.5],16);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
 
+let puntoAttuale=null, cerchioAttuale=null;
 let punto=null, cerchio=null, markers=[];
-let watchID=null, centroSelezionato=null;
+let ultimaPosizione=null, centroSelezionato=null;
+let watchID=null;
 let luoghi=JSON.parse(localStorage.getItem("luoghi")||"[]");
-// ---------- POSIZIONE ATTUALE ----------
 
-let watchID = null;
-let puntoAttuale = null; // punto blu
-let cerchioAttuale = null;
-
-document.getElementById("gpsBtnBottom").onclick = () => {
-  if(watchID !== null) navigator.geolocation.clearWatch(watchID);
-
-  watchID = navigator.geolocation.watchPosition(
-    pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      // Aggiorna il punto blu
-      if(puntoAttuale) map.removeLayer(puntoAttuale);
-      if(cerchioAttuale) map.removeLayer(cerchioAttuale);
-
-      puntoAttuale = L.circleMarker([lat,lng], {
-        radius:8,
-        color:"white",
-        fillColor:"#007aff",
-        fillOpacity:1
-      }).addTo(map);
-
-      // Mostra il cerchio attorno al punto blu
-      const raggio = Number(document.getElementById("raggio").value);
-      cerchioAttuale = L.circle([lat,lng], {
-        radius: raggio,
-        fillColor:"#007aff",
-        fillOpacity:0.15,
-        color:null
-      }).addTo(map);
-
-      // Porta la mappa sul punto blu
-      map.panTo([lat,lng]);
-
-      // Mostra parcheggi dentro il raggio
-      disegnaParcheggi(lat,lng,raggio);
-
-      // Aggiorna ultima posizione
-      ultimaPosizione = {lat,lng};
-    },
-    err => { alert("Errore GPS"); },
-    { enableHighAccuracy:true, maximumAge:0, timeout:5000 }
-  );
-};
-
-// ---- Aggiorna pallino posizione ----
+// ---- Funzioni di utilità ----
 function aggiornaPunto(lat,lng){
   if(!punto) punto = L.circleMarker([lat,lng],{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}).addTo(map);
   else punto.setLatLng([lat,lng]);
   punto.bringToFront();
 }
 
-// ---- Pulizia marker ----
-function pulisci(){
-  markers.forEach(m=>map.removeLayer(m));
-  markers=[];
-  if(cerchio){ map.removeLayer(cerchio); cerchio=null; }
-}
-
-// ---- Distanza ----
 function distanza(lat1,lng1,lat2,lng2){
   const R=6371000;
   const dLat=(lat2-lat1)*Math.PI/180;
@@ -136,6 +83,12 @@ function distanza(lat1,lng1,lat2,lng2){
   const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
   const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   return R*c;
+}
+
+function pulisci(){
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+  if(cerchio){ map.removeLayer(cerchio); cerchio=null; }
 }
 
 // ---- Parcheggi casuali ----
@@ -147,18 +100,23 @@ function generaParcheggi(lat,lng){
   return arr;
 }
 
-// ---- Disegna parcheggi e cerchio ----
+// ---- Disegna cerchio e parcheggi ----
 function disegna(lat,lng){
   const raggio=Number(document.getElementById("raggio").value);
   pulisci();
-  cerchio = L.circle([lat,lng],{radius:raggio,fillColor:"#3388ff",fillOpacity:0.15,color:null}).addTo(map);
+  cerchio = L.circle([lat,lng],{radius:raggio,fillColor:"#3388ff",fillOpacity:0.15,color:"#00ff00",weight:3}).addTo(map);
   const parcheggi = generaParcheggi(lat,lng);
   let tot=0, liberi=0;
   parcheggi.forEach(p=>{
     const dist=distanza(lat,lng,p.lat,p.lng);
     if(dist<=raggio){
       tot++; if(p.libero) liberi++;
-      const marker=L.marker([p.lat,p.lng],{icon:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize:[25,25]})}).addTo(map);
+      const marker=L.circleMarker([p.lat,p.lng],{
+        radius:7,
+        color:"#000",
+        fillColor:p.libero?"green":"red",
+        fillOpacity:0.9
+      }).addTo(map);
       markers.push(marker);
     }
   });
@@ -168,11 +126,11 @@ function disegna(lat,lng){
 // ---- Cerca indirizzo ----
 async function cercaIndirizzo(ind){
   const url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(ind);
-  const res=await fetch(url); const data=await res.json();
+  const res=await fetch(url); 
+  const data=await res.json();
   if(data.length==0){ alert("Indirizzo non trovato"); return; }
   const lat=parseFloat(data[0].lat), lon=parseFloat(data[0].lon);
   centroSelezionato={lat,lon};
-  aggiornaPunto(lat,lon);
   map.setView([lat,lon],16);
   disegna(lat,lon);
 }
@@ -183,7 +141,7 @@ document.getElementById("cercaBtnRiga1").onclick = ()=>{
   if(v!="") cercaIndirizzo(v);
 }
 
-// ---- Aggiorna raggio ----
+// ---- Aggiorna raggio automaticamente ----
 document.getElementById("raggio").onchange = ()=>{
   if(centroSelezionato) disegna(centroSelezionato.lat,centroSelezionato.lon);
 }
@@ -191,13 +149,22 @@ document.getElementById("raggio").onchange = ()=>{
 // ---- GPS ----
 document.getElementById("gpsBtn").onclick = ()=>{
   if(!navigator.geolocation) return alert("GPS non disponibile");
-  navigator.geolocation.getCurrentPosition(pos=>{
+  if(watchID!==null) navigator.geolocation.clearWatch(watchID);
+  watchID = navigator.geolocation.watchPosition(pos=>{
     const lat=pos.coords.latitude, lng=pos.coords.longitude;
-    aggiornaPunto(lat,lng);
-    centroSelezionato={lat,lng};
-    map.setView([lat,lng],16);
+    ultimaPosizione={lat,lng};
+
+    // Aggiorna punto blu attuale
+    if(puntoAttuale) map.removeLayer(puntoAttuale);
+    if(cerchioAttuale) map.removeLayer(cerchioAttuale);
+    puntoAttuale = L.circleMarker([lat,lng],{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}).addTo(map);
+    cerchioAttuale = L.circle([lat,lng],{radius:Number(document.getElementById("raggio").value),fillColor:"#007aff",fillOpacity:0.15,color:null}).addTo(map);
+
+    // Porta la mappa sul punto blu solo se non stiamo mostrando un altro centro selezionato
+    if(!centroSelezionato) map.setView([lat,lng],16);
+
     disegna(lat,lng);
-  }, err=>alert("Errore GPS"));
+  }, err=>alert("Errore GPS"), {enableHighAccuracy:true,maximumAge:0,timeout:5000});
 }
 
 // ---- Luoghi dinamici ----
@@ -216,29 +183,6 @@ function aggiornaLuoghi(){
 
     const del=document.createElement("button"); del.textContent="✖"; del.style.fontSize="12px";
     del.onclick=(e)=>{ e.stopPropagation(); if(confirm("Eliminare questo luogo?")){ luoghi.splice(i,1); localStorage.setItem("luoghi",JSON.stringify(luoghi)); aggiornaLuoghi(); }}
-    
+
     btn.appendChild(edit); btn.appendChild(del);
-    btn.onclick=()=>{ cercaIndirizzo(l.indirizzo); document.querySelectorAll(".luogoBtn").forEach(b=>b.classList.remove("attivo")); btn.classList.add("attivo"); }
-    bar.appendChild(btn);
-  });
-}
-
-document.getElementById("addPlace").onclick=()=>{
-  const nome=document.getElementById("nomeLuogo").value.trim();
-  const indirizzo=document.getElementById("indirizzoLuogo").value.trim();
-  if(!nome || !indirizzo) return;
-  luoghi.push({nome,indirizzo});
-  localStorage.setItem("luoghi",JSON.stringify(luoghi));
-  aggiornaLuoghi();
-  document.getElementById("settings").style.display="none"; // chiude popup
-}
-
-document.getElementById("luoghiBtnMenu").onclick=()=>{
-  const s=document.getElementById("settings");
-  s.style.display = s.style.display==="none"?"block":"none";
-}
-
-aggiornaLuoghi();
-</script>
-</body>
-</html>
+    btn.onclick=()=>{ cercaIndirizzo(l.indirizzo); document.querySelectorAll(".luogoBtn").forEach
