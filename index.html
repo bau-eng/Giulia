@@ -225,8 +225,6 @@ cursor:pointer;
 <button id="vaiParcheggio">Portami al parcheggio</button>
 </div>
 
-<button id="posizioneBtn">📍</button>
-
 <div id="settings">
 <input id="nomeLuogo" placeholder="Nome luogo">
 <input id="indirizzoLuogo" placeholder="Indirizzo">
@@ -695,41 +693,6 @@ window.open(
 
 };
 
-document.getElementById("posizioneBtn").onclick=()=>{
-
-if(!navigator.geolocation) return;
-
-navigator.geolocation.getCurrentPosition(pos=>{
-
-const lat=pos.coords.latitude;
-const lng=pos.coords.longitude;
-
-/* sposta la mappa */
-
-map.panTo([lat,lng]);
-
-/* mostra il puntino blu */
-
-if(!puntoAttuale){
-
-puntoAttuale=L.circleMarker(
-[lat,lng],
-{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}
-).addTo(map);
-
-}else{
-
-puntoAttuale.setLatLng([lat,lng]);
-
-}
-
-},{
-enableHighAccuracy:true,
-timeout:5000,
-maximumAge:0
-});
-
-};
 
 </script>
 
