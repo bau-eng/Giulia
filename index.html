@@ -8,8 +8,6 @@
 <style>
 body{margin:0;font-family:sans-serif;}
 #map{height:100vh;}
-
-/* --- Controlli sopra la mappa --- */
 #controls{position:absolute;top:10px;left:10px;right:10px;z-index:2000;display:flex;flex-direction:column;gap:6px;pointer-events:auto;}
 #via{padding:10px;font-size:16px;border-radius:25px;border:1px solid #ccc;background:rgba(255,255,255,0.8);}
 #cercaBtnRiga1{padding:10px;border-radius:25px;border:1px solid #ccc;background:#007aff;color:white;cursor:pointer;}
@@ -19,11 +17,7 @@ body{margin:0;font-family:sans-serif;}
 .luogoBtn.attivo{border-color:green;}
 .luogoBtn span{margin-right:4px;}
 #luoghiBtnMenu{flex-shrink:0;padding:8px 12px;border-radius:20px;border:1px solid #ccc;background:rgba(240,240,240,0.9);cursor:pointer;white-space:nowrap;}
-
-/* --- GPS --- */
 #gpsBtn{position:absolute;bottom:20px;right:20px;width:50px;height:50px;border-radius:50%;border:none;font-size:20px;background:white;z-index:2000;box-shadow:0 2px 8px rgba(0,0,0,0.2);cursor:pointer;}
-
-/* --- Settings --- */
 #settings{position:absolute;top:60px;right:10px;background:white;padding:12px;border-radius:12px;border:1px solid #ccc;display:none;z-index:2000;width:250px;}
 #settings input{width:100%;padding:8px;margin-bottom:6px;border-radius:6px;border:1px solid #ccc;}
 #addPlace{width:100%;padding:8px;border-radius:6px;border:1px solid #ccc;background:#eee;cursor:pointer;}
@@ -63,20 +57,16 @@ body{margin:0;font-family:sans-serif;}
 let map = L.map("map").setView([41.9,12.5],16);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
 
-// Variabili globali
 let puntoAttuale=null, cerchioAttuale=null;
 let puntoDest=null, cerchio=null;
 let markers=[];
-let ultimaPosizione=null;
 let centroSelezionato=null;
-let watchID=null;
 let luoghi=JSON.parse(localStorage.getItem("luoghi")||"[]");
 
 // ---- Funzioni ----
 function aggiornaPuntoAttuale(lat,lng){
   if(puntoAttuale) puntoAttuale.setLatLng([lat,lng]);
   else puntoAttuale = L.circleMarker([lat,lng], {radius:8, color:"white", fillColor:"#007aff", fillOpacity:1}).addTo(map);
-  if(cerchioAttuale) cerchioAttuale.setLatLng([lat,lng]);
 }
 
 function aggiornaCerchioAttuale(lat,lng){
@@ -126,7 +116,7 @@ function disegnaParcheggi(lat,lng){
   document.getElementById("risultati").innerHTML="Parcheggi totali: "+tot+"<br>Parcheggi liberi: "+liberi;
 }
 
-// ---- Cerca indirizzo ----
+// ---- Cerca indirizzo riga1 ----
 async function cercaIndirizzo(ind){
   const url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(ind);
   const res=await fetch(url); const data=await res.json();
@@ -139,27 +129,25 @@ async function cercaIndirizzo(ind){
   map.setView([lat,lon],16);
 }
 
-// ---- Eventi ----
 document.getElementById("cercaBtnRiga1").onclick=()=>{
   const v=document.getElementById("via").value.trim();
   if(v!="") cercaIndirizzo(v);
 }
 
+// ---- Aggiorna raggio ----
 document.getElementById("raggio").onchange=()=>{
   if(centroSelezionato) disegnaParcheggi(centroSelezionato.lat,centroSelezionato.lon);
-  if(puntoAttuale) aggiornaCerchioAttuale(puntoAttuale.getLatLng().lat,puntoAttuale.getLatLng().lng);
 }
 
+// ---- Pulsante GPS solo per posizione attuale ----
 document.getElementById("gpsBtn").onclick=()=>{
   if(!navigator.geolocation) return alert("GPS non disponibile");
-  if(watchID!==null) navigator.geolocation.clearWatch(watchID);
-  watchID = navigator.geolocation.watchPosition(pos=>{
+  navigator.geolocation.getCurrentPosition(pos=>{
     const lat=pos.coords.latitude, lng=pos.coords.longitude;
     aggiornaPuntoAttuale(lat,lng);
     aggiornaCerchioAttuale(lat,lng);
     disegnaParcheggi(lat,lng);
-    ultimaPosizione={lat,lng};
-  }, err=>alert("Errore GPS"), {enableHighAccuracy:true, maximumAge:0, timeout:5000});
+  }, err=>alert("Errore GPS"));
 }
 
 // ---- Luoghi dinamici ----
@@ -182,7 +170,6 @@ function aggiornaLuoghi(){
   });
 }
 
-// ---- Aggiungi luogo ----
 document.getElementById("addPlace").onclick=()=>{
   const nome=document.getElementById("nomeLuogo").value.trim();
   const indirizzo=document.getElementById("indirizzoLuogo").value.trim();
@@ -193,7 +180,6 @@ document.getElementById("addPlace").onclick=()=>{
   document.getElementById("settings").style.display="none";
 }
 
-// ---- Mostra/Nascondi settings ----
 document.getElementById("luoghiBtnMenu").onclick=()=>{
   const s=document.getElementById("settings");
   s.style.display=s.style.display==="none"?"block":"none";
