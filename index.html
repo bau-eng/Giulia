@@ -154,6 +154,41 @@ z-index:2000;
 font-size:16px;
 }
 
+#posizioneBtn{
+position:absolute;
+bottom:20px;
+right:20px;
+width:55px;
+height:55px;
+border-radius:50%;
+border:none;
+background:white;
+font-size:22px;
+cursor:pointer;
+z-index:2000;
+box-shadow:0 2px 6px rgba(0,0,0,0.3);
+}
+
+#navigazione{
+position:absolute;
+bottom:90px;
+left:10px;
+right:10px;
+z-index:2000;
+display:none;
+}
+
+#vaiParcheggio{
+width:100%;
+padding:12px;
+border-radius:20px;
+border:none;
+background:#28a745;
+color:white;
+font-size:16px;
+cursor:pointer;
+}
+
 </style>
 </head>
 
@@ -186,6 +221,11 @@ font-size:16px;
 <div id="map"></div>
 
 <div id="risultati"></div>
+<div id="navigazione">
+<button id="vaiParcheggio">Portami al parcheggio</button>
+</div>
+
+<button id="posizioneBtn">📍</button>
 
 <div id="settings">
 <input id="nomeLuogo" placeholder="Nome luogo">
@@ -206,6 +246,7 @@ L.tileLayer(
 
 let markers=[];
 let cerchio=null;
+let parcheggioSelezionato=null;
 
 let puntoAttuale=null;
 let cerchioAttuale=null;
@@ -366,6 +407,18 @@ const marker=L.circleMarker([p.lat,p.lng],
 {radius:7,fillColor:p.libero?"green":"red",color:"#000",fillOpacity:0.9}
 ).addTo(map);
 
+if(p.libero){
+
+marker.on("click",()=>{
+
+parcheggioSelezionato={lat:p.lat,lng:p.lng};
+
+document.getElementById("navigazione").style.display="block";
+
+});
+
+}
+
 markers.push(marker);
 
 }
@@ -489,6 +542,42 @@ s.style.display = s.style.display==="none"?"block":"none";
 };
 
 aggiornaLuoghi();
+
+document.getElementById("vaiParcheggio").onclick=()=>{
+
+if(!parcheggioSelezionato) return;
+
+const lat=parcheggioSelezionato.lat;
+const lng=parcheggioSelezionato.lng;
+
+window.open(
+"https://www.google.com/maps/dir/?api=1&destination="+lat+","+lng,
+"_blank"
+);
+
+};
+
+document.getElementById("posizioneBtn").onclick=()=>{
+
+if(!navigator.geolocation) return;
+
+navigator.geolocation.getCurrentPosition(pos=>{
+
+const lat=pos.coords.latitude;
+const lng=pos.coords.longitude;
+
+map.setView([lat,lng],17);
+
+if(!puntoAttuale){
+puntoAttuale=L.circleMarker([lat,lng],
+{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}).addTo(map);
+}else{
+puntoAttuale.setLatLng([lat,lng]);
+}
+
+});
+
+};
 
 </script>
 
