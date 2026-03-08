@@ -411,6 +411,28 @@ if(p.libero){
 
 marker.on("click",()=>{
 
+markers.forEach(m=>m.setStyle({radius:7}));
+
+marker.setStyle({
+radius:12,
+fillColor:"blue"
+});
+
+parcheggioSelezionato={
+lat:p.lat,
+lng:p.lng
+};
+
+document.getElementById("navigazione").style.display="block";
+
+});
+
+}
+
+if(p.libero){
+
+marker.on("click",()=>{
+
 parcheggioSelezionato={lat:p.lat,lng:p.lng};
 
 document.getElementById("navigazione").style.display="block";
@@ -501,14 +523,77 @@ luoghi.forEach((l,i)=>{
 
 const btn=document.createElement("div");
 btn.className="luogoBtn";
-btn.textContent=l.nome;
 
-btn.onclick=()=>{
+/* nome luogo */
+
+const nome=document.createElement("span");
+nome.textContent=l.nome;
+
+/* icona modifica */
+
+const edit=document.createElement("span");
+edit.textContent=" ✏️";
+edit.style.cursor="pointer";
+
+/* icona elimina */
+
+const del=document.createElement("span");
+del.textContent=" 🗑";
+del.style.cursor="pointer";
+
+/* clic sul luogo */
+
+nome.onclick=()=>{
+
 cercaIndirizzo(l.indirizzo);
 
 document.querySelectorAll(".luogoBtn").forEach(b=>b.classList.remove("attivo"));
 btn.classList.add("attivo");
+
 };
+
+/* modifica luogo */
+
+edit.onclick=(e)=>{
+
+e.stopPropagation();
+
+let nuovoNome=prompt("Nuovo nome",l.nome);
+let nuovoIndirizzo=prompt("Nuovo indirizzo",l.indirizzo);
+
+if(nuovoNome && nuovoIndirizzo){
+
+luoghi[i]={nome:nuovoNome,indirizzo:nuovoIndirizzo};
+
+localStorage.setItem("luoghi",JSON.stringify(luoghi));
+
+aggiornaLuoghi();
+
+}
+
+};
+
+/* elimina luogo */
+
+del.onclick=(e)=>{
+
+e.stopPropagation();
+
+if(confirm("Eliminare questo luogo?")){
+
+luoghi.splice(i,1);
+
+localStorage.setItem("luoghi",JSON.stringify(luoghi));
+
+aggiornaLuoghi();
+
+}
+
+};
+
+btn.appendChild(nome);
+btn.appendChild(edit);
+btn.appendChild(del);
 
 bar.appendChild(btn);
 
