@@ -256,9 +256,54 @@ let gpsAttivo=false;
 
 let luoghi=JSON.parse(localStorage.getItem("luoghi")||"[]");
 
+function resetRicerca(){
+
+/* rimuove marker parcheggi */
+
+markers.forEach(m=>map.removeLayer(m));
+markers=[];
+
+/* rimuove cerchio indirizzo */
+
+if(cerchio){
+map.removeLayer(cerchio);
+cerchio=null;
+}
+
+/* rimuove cerchio GPS */
+
+if(cerchioAttuale){
+map.removeLayer(cerchioAttuale);
+cerchioAttuale=null;
+}
+
+/* rimuove punto GPS */
+
+if(puntoAttuale){
+map.removeLayer(puntoAttuale);
+puntoAttuale=null;
+}
+
+/* rimuove punto indirizzo */
+
+if(punto){
+map.removeLayer(punto);
+punto=null;
+}
+
+/* reset selezione parcheggio */
+
+parcheggioSelezionato=null;
+
+document.getElementById("navigazione").style.display="none";
+
+}
+
 /* GPS */
 
 document.getElementById("gpsBtn").onclick=()=>{
+
+resetRicerca();
 
 if(!navigator.geolocation)
 return alert("GPS non disponibile");
@@ -485,6 +530,8 @@ punto.bringToFront();
 
 async function cercaIndirizzo(ind){
 
+resetRicerca();
+
 document.getElementById("gpsBtn").classList.remove("attivo");
 gpsAttivo=false;
 /* rimuove il cerchio GPS */
@@ -672,13 +719,6 @@ const lat=pos.coords.latitude;
 const lng=pos.coords.longitude;
 
 map.setView([lat,lng],17);
-
-if(!puntoAttuale){
-puntoAttuale=L.circleMarker([lat,lng],
-{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}).addTo(map);
-}else{
-puntoAttuale.setLatLng([lat,lng]);
-}
 
 });
 
