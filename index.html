@@ -448,7 +448,8 @@ tot++;
 
 if(p.libero) liberi++;
 
-const marker=L.circleMarker([p.lat,p.lng],
+const marker=L.circleMarker(
+[p.lat,p.lng],
 {radius:7,fillColor:p.libero?"green":"red",color:"#000",fillOpacity:0.9}
 ).addTo(map);
 
@@ -456,16 +457,13 @@ if(p.libero){
 
 marker.on("click",()=>{
 
+/* reset dimensione parcheggi */
+
 markers.forEach(m=>{
-
-const libero=m.options.fillColor==="green";
-
-m.setStyle({
-radius:7,
-fillColor:libero?"green":"red"
+m.setStyle({radius:7});
 });
 
-});
+/* evidenzia quello scelto */
 
 marker.setStyle({
 radius:12,
@@ -476,18 +474,6 @@ parcheggioSelezionato={
 lat:p.lat,
 lng:p.lng
 };
-
-document.getElementById("navigazione").style.display="block";
-
-});
-
-}
-
-if(p.libero){
-
-marker.on("click",()=>{
-
-parcheggioSelezionato={lat:p.lat,lng:p.lng};
 
 document.getElementById("navigazione").style.display="block";
 
@@ -718,8 +704,29 @@ navigator.geolocation.getCurrentPosition(pos=>{
 const lat=pos.coords.latitude;
 const lng=pos.coords.longitude;
 
-map.setView([lat,lng],17);
+/* sposta la mappa */
 
+map.panTo([lat,lng]);
+
+/* mostra il puntino blu */
+
+if(!puntoAttuale){
+
+puntoAttuale=L.circleMarker(
+[lat,lng],
+{radius:8,color:"white",fillColor:"#007aff",fillOpacity:1}
+).addTo(map);
+
+}else{
+
+puntoAttuale.setLatLng([lat,lng]);
+
+}
+
+},{
+enableHighAccuracy:true,
+timeout:5000,
+maximumAge:0
 });
 
 };
