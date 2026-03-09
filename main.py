@@ -1,66 +1,66 @@
-from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
+import os
 import psycopg2
-import math
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import json
+import urllib.parse
 
 app = FastAPI()
 
+# Consenti al frontend di fare richieste al backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # puoi restringere al tuo dominio se vuoi
+    allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
-# Connessione PostgreSQL
+# -------------------------------------------------
+# Connessione al database Postgres su Render
+# -------------------------------------------------
+
+# Prendi l'URL dal variabile d'ambiente (configurata su Render)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise Exception("Imposta la variabile d'ambiente DATABASE_URL su Render!")
+
+# Parse URL per psycopg2
+result = urllib.parse.urlparse(DATABASE_URL)
+
+db_user = result.username
+db_password = result.password
+db_name = result.path[1:]  # togli la barra iniziale
+db_host = result.hostname
+db_port = result.port
+
+# connessione al database
 conn = psycopg2.connect(
-    dbname="smart_parking",
-    user="postgres",
-    password="mS@Gkph#tsqmyY6K76dd",
-    host="localhost",
-    port="5432"
+    dbname=db_name,
+    user=db_user,
+    password=db_password,
+    host=db_host,
+    port=db_port
 )
 
-# Funzione distanza in metri
-def distanza_metri(lat1, lng1, lat2, lng2):
-    R = 6371000
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lng2 - lng1)
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1-a))
-
-# Endpoint per parcheggi vicini
+# -------------------------------------------------
+# Route demo per parcheggi
+# -------------------------------------------------
 @app.get("/parcheggi/vicini")
-def parcheggi_vicini(lat: float = Query(...), lng: float = Query(...), raggio: int = 50):
-    with conn.cursor() as cur:
-        cur.execute("SELECT id, citta, via, lat, lng, stato, tipo, descrizione FROM parcheggi")
-        parcheggi = cur.fetchall()
-
-    risultati = []
-    for p in parcheggi:
-        d = distanza_metri(lat, lng, p[3], p[4])
-        if d <= raggio:
-            risultati.append({
-                "id": p[0],
-                "citta": p[1],
-                "via": p[2],
-                "lat": p[3],
-                "lng": p[4],
-                "stato": p[5],
-                "tipo": p[6],
-                "descrizione": p[7],
-                "distanza_m": round(d, 1)
-            })
-
-    risultati.sort(key=lambda x: x["distanza_m"])
-    return {"parcheggi": risultati}
-
-# Endpoint per aggiornare stato parcheggio
-@app.post("/aggiorna")
-def aggiorna_parcheggio(data: dict):
-    with conn.cursor() as cur:
-        cur.execute("UPDATE parcheggi SET stato=%s WHERE id=%s", (data["stato"], data["id"]))
-        conn.commit()
-    return {"ok": True}
+async def parcheggi_vicini(lat: float, lng: float, raggio: float):
+    cur = conn.cursor()
+    # esempio semplice: prendi tutti i parcheggi entro raggio
+    cur.execute("SELECT lat, lng, stato, tipo, descrizione FROM parcheggi;")
+    rows = cur.fetchall()
+    parcheggi = []
+    for r in rows:
+        parcheggi.append({
+            "lat": r[0],
+            "lng": r[1],
+            "stato": r[2],
+            "tipo": r[3],
+            "descrizione": r[4]
+        })
+    cur.close()
+    return {"parcheggi": parcheggi}
