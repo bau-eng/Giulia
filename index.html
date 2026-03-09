@@ -490,7 +490,7 @@ async function disegnaParcheggi(lat,lng){
         } else if(centroSelezionato.tipo === "gps") {
             viaBackend = `${lat},${lng}`; // coord da GPS
         }
-        const response = await fetch(`http://localhost:8000/parcheggi/vicini?lat=${lat}&lng=${lng}&raggio=${raggio}`);
+        const response = await fetch(`http://postgresql://smart_parking_db_7jlq_user:Pn5V9Pms5TsTJycTozbQqCT91aWipUyH@dpg-d6nejnfgi27c73cdc69g-a.frankfurt-postgres.render.com/smart_parking_db_7jlq/parcheggi/vicini?lat=${lat}&lng=${lng}&raggio=${raggio}`);
         const data = await response.json();
         parcheggi = data.parcheggi;
     } catch(e) {
