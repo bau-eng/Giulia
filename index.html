@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ricerca Parcheggi</title>
 
+<link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
@@ -189,6 +190,47 @@ font-size:16px;
 cursor:pointer;
 }
 
+#parcheggioBox {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 2000;
+  max-width: 250px;
+}
+
+#parcheggioBox button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+#vaiParcheggio {
+  background-color: #28a745; /* verde */
+  color: white;
+}
+
+#infoParcheggioBtn {
+  background-color: #007aff; /* blu */
+  color: white;
+}
+
+#infoParcheggio {
+  display: none;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  background-color: rgba(255,255,255,0.95);
+  font-size: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
 </style>
 </head>
 
@@ -221,8 +263,16 @@ cursor:pointer;
 <div id="map"></div>
 
 <div id="risultati"></div>
-<div id="navigazione">
-<button id="vaiParcheggio">Portami al parcheggio</button>
+
+<div id="navigazione" style="display:none; flex-direction:column; gap:6px;">
+  <button id="vaiParcheggio">Portami al parcheggio</button>
+  <button id="infoParcheggioBtn">Informazioni parcheggio</button>
+
+  <div id="infoParcheggio" style="display:none; padding:10px; border:1px solid #ccc; border-radius:8px;">
+    <p><b>Stato:</b> <span id="statoParcheggio"></span></p>
+    <p><b>Tipo:</b> <span id="tipoParcheggio"></span></p>
+    <p><b>Descrizione:</b> <span id="descrizioneParcheggio"></span></p>
+  </div>
 </div>
 
 <div id="settings">
@@ -411,82 +461,136 @@ return arr;
 
 }
 
-/* disegna parcheggi */
+/* disegna parcheggi dal backend */
+async function disegnaParcheggi(lat,lng){
 
-function disegnaParcheggi(lat,lng){
+    // pulisce vecchi marker
+    markers.forEach(m=>map.removeLayer(m));
+    markers=[];
 
-markers.forEach(m=>map.removeLayer(m));
-markers=[];
+    const raggio=Number(document.getElementById("raggio").value);
 
-const raggio=Number(document.getElementById("raggio").value);
+    if(centroSelezionato.tipo!=="gps"){
 
-if(centroSelezionato.tipo!=="gps"){
+        if(cerchio)
+            cerchio.setLatLng([lat,lng]).setRadius(raggio);
+        else
+            cerchio=L.circle([lat,lng],
+            {radius:raggio,fillColor:"#3388ff",fillOpacity:0.15,color:"green",weight:4}
+            ).addTo(map);
 
-if(cerchio)
-cerchio.setLatLng([lat,lng]).setRadius(raggio);
-else
-cerchio=L.circle([lat,lng],
-{radius:raggio,fillColor:"#3388ff",fillOpacity:0.15,color:"green",weight:4}
-).addTo(map);
+    }
 
-}
+    // --- fetch parcheggi dal backend ---
+    let parcheggi = [];
+    try {
+        let viaBackend = "";
+        if(centroSelezionato.tipo === "indirizzo") {
+            viaBackend = `${lat},${lng}`; // coord da indirizzo
+        } else if(centroSelezionato.tipo === "gps") {
+            viaBackend = `${lat},${lng}`; // coord da GPS
+        }
+        const response = await fetch(`http://localhost:8000/parcheggi/vicini?lat=${lat}&lng=${lng}&raggio=${raggio}`);
+        const data = await response.json();
+        parcheggi = data.parcheggi;
+    } catch(e) {
+        console.error("Errore nel recupero parcheggi:", e);
+    }
+    // disegnaParcheggi--------------------------------------
 
-const parcheggi=generaParcheggi(lat,lng);
+let tot = 0;
+let liberi = 0;
 
-let tot=0;
-let liberi=0;
+parcheggi.forEach(p => {
 
-parcheggi.forEach(p=>{
+    const dist = distanza(lat, lng, p.lat, p.lng);
 
-const dist=distanza(lat,lng,p.lat,p.lng);
+    if(dist <= raggio) {
 
-if(dist<=raggio){
+        tot++;
+        if(p.stato === "libero") liberi++;
 
-tot++;
+        // colore iniziale in base allo stato
+        let coloreIniziale = (p.stato === "libero") ? "green" : "red";
 
-if(p.libero) liberi++;
+        const marker = L.circleMarker(
+            [p.lat, p.lng],
+            { radius: 5, fillColor: coloreIniziale, color: "#000", fillOpacity: 0.9 } // puntini più piccoli
+        ).addTo(map);
 
-const marker=L.circleMarker(
-[p.lat,p.lng],
-{radius:7,fillColor:p.libero?"green":"red",color:"#000",fillOpacity:0.9}
-).addTo(map);
+        marker.pColorDefault = coloreIniziale; // salva il colore dello stato
+        marker.pTypeColor = (p.tipo === "blu") ? "blue" :
+                            (p.tipo === "giallo") ? "goldenrod" :
+                            (p.tipo === "bianco") ? "white" : "gray";
 
-if(p.libero){
+        marker.on("click", () => {
+            // reset marker precedenti
+            markers.forEach(m => {
+                if(m !== marker) {
+                    m.setStyle({ fillColor: m.pColorDefault, radius: 5 });
+                }
+            });
 
-marker.on("click",()=>{
+            // evidenzia marker cliccato
+            marker.setStyle({ fillColor: marker.pTypeColor, radius: 7 });
 
-/* reset dimensione parcheggi */
+            parcheggioSelezionato = {
+                lat: p.lat,
+                lng: p.lng,
+                stato: p.stato,
+                tipo: p.tipo,
+                descrizione: p.descrizione
+            };
 
-markers.forEach(m=>{
-m.setStyle({radius:7});
+            // mostra contenitore info
+            document.getElementById("navigazione").style.display = "flex";
+
+            // nasconde info inizialmente
+            document.getElementById("infoParcheggio").style.display = "none";
+
+            // aggiorna contenuti info
+            const statoEl = document.getElementById("statoParcheggio");
+            const tipoEl = document.getElementById("tipoParcheggio");
+            const descEl = document.getElementById("descrizioneParcheggio");
+
+            // Stato
+            statoEl.textContent = p.stato;
+            statoEl.style.color = (p.stato === "libero") ? "green" : "red";
+
+            // Tipo
+            let tipoTesto = "", tipoColore = "";
+            if(p.tipo === "blu") {
+                tipoTesto = "A pagamento";
+                tipoColore = "blue";
+            } else if(p.tipo === "giallo") {
+                tipoTesto = "Categoria specifica";
+                tipoColore = "goldenrod";
+            } else if(p.tipo === "bianco") {
+                tipoTesto = "Gratuito";
+                tipoColore = "black";
+            } else {
+                tipoTesto = p.tipo;
+                tipoColore = "gray";
+            }
+            tipoEl.textContent = tipoTesto;
+            tipoEl.style.color = tipoColore;
+
+            // Descrizione
+            descEl.textContent = (p.tipo === "bianco") ? "" : p.descrizione;
+        });
+
+        markers.push(marker);
+    }
+
 });
 
-/* evidenzia quello scelto */
-
-marker.setStyle({
-radius:12,
-fillColor:"blue"
-});
-
-parcheggioSelezionato={
-lat:p.lat,
-lng:p.lng
+document.getElementById("infoParcheggioBtn").onclick = ()=>{
+    const infoDiv = document.getElementById("infoParcheggio");
+    infoDiv.style.display = (infoDiv.style.display === "none") ? "block" : "none";
 };
 
-document.getElementById("navigazione").style.display="block";
-
-});
-
-}
-
-markers.push(marker);
-
-}
-
-});
-
-document.getElementById("risultati").innerHTML=
-"Parcheggi totali: "+tot+"<br>Parcheggi liberi: "+liberi;
+    document.getElementById("risultati").innerHTML=
+        "Parcheggi totali: "+tot+"<br>Parcheggi liberi: "+liberi;
 
 }
 
@@ -695,6 +799,10 @@ window.open(
 
 
 </script>
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
 
 </body>
 </html>
