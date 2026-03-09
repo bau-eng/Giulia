@@ -285,6 +285,7 @@ cursor:pointer;
 
 <script>
 
+const BACKEND_URL = postgresql://smart_parking_db_7jlq_user:Pn5V9Pms5TsTJycTozbQqCT91aWipUyH@dpg-d6nejnfgi27c73cdc69g-a.frankfurt-postgres.render.com/smart_parking_db_7jlq;
 let map = L.map("map").setView([41.9,12.5],16);
 
 L.tileLayer(
@@ -490,7 +491,7 @@ async function disegnaParcheggi(lat,lng){
         } else if(centroSelezionato.tipo === "gps") {
             viaBackend = `${lat},${lng}`; // coord da GPS
         }
-        const response = await fetch(`http://postgresql://smart_parking_db_7jlq_user:Pn5V9Pms5TsTJycTozbQqCT91aWipUyH@dpg-d6nejnfgi27c73cdc69g-a.frankfurt-postgres.render.com/smart_parking_db_7jlq/parcheggi/vicini?lat=${lat}&lng=${lng}&raggio=${raggio}`);
+        const response = await fetch(`${BACKEND_URL}/parcheggi/vicini?lat=${lat}&lng=${lng}&raggio=${raggio}`);
         const data = await response.json();
         parcheggi = data.parcheggi;
     } catch(e) {
